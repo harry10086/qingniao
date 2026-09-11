@@ -3,9 +3,10 @@
  * Authentication, review, search, bulk updates, direct replies, and Twikoo/Native import/export
  */
 import { requireAdmin } from '../middleware/auth.js';
-import { generateToken, hashEmail, md5Email } from '../utils/crypto.js';
+import { generateToken, hashEmail, hashIP, md5Email } from '../utils/crypto.js';
 import { notifyUserReply } from '../utils/email.js';
 import { purgeKvCache } from '../utils/kvCache.js';
+import { autoDetectAndParse } from '../utils/importers.js';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -445,6 +446,7 @@ export async function exportComments(request, env) {
 
 /**
  * POST /api/admin/import
+ * Import comments from WordPress, Typecho, Waline, Artalk, Twikoo, or Native formats
  */
 export async function importComments(request, env) {
   const authError = await requireAdmin(request, env);
@@ -457,46 +459,60 @@ export async function importComments(request, env) {
     return Response.json({ error: '请求格式错误' }, { status: 400 });
   }
 
-  const { comments, isTwikoo } = body;
-  if (!Array.isArray(comments) || comments.length === 0) {
-    return Response.json({ error: '评论数据为空' }, { status: 400 });
+  const { format = 'auto', isTwikoo } = body;
+  let rawData = body.data || body.raw || body.xml || body.comments || body;
+
+  let targetFormat = format;
+  if (isTwikoo) targetFormat = 'twikoo';
+
+  let parseResult;
+  try {
+    parseResult = autoDetectAndParse(rawData, targetFormat);
+  } catch (err) {
+    return Response.json({ error: `解析评论数据失败: ${err.message}` }, { status: 400 });
   }
 
+  const normalizedComments = parseResult.comments || [];
+  if (!Array.isArray(normalizedComments) || normalizedComments.length === 0) {
+    return Response.json({ error: '未解析到有效的评论数据' }, { status: 400 });
+  }
+
+  // Sort comments by created_at (ascending) so parents are inserted before children
+  normalizedComments.sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    return timeA - timeB;
+  });
+
   let importedCount = 0;
-  const twikooIdMap = new Map();
+  const originalIdMap = new Map();
+  const defaultIpHash = await hashIP('0.0.0.0');
 
-  for (const item of comments) {
+  for (const item of normalizedComments) {
     try {
-      let pagePath, pageTitle, username, email, website, content, status, createdAt, ipHash, emailHash;
+      const pagePath = item.page_path || '/';
+      const pageTitle = item.page_title || '';
+      const username = (item.username || '匿名').trim();
+      const email = (item.email || '').trim();
+      const website = (item.website || '').trim();
+      const content = (item.content || '').trim();
+      const status = item.status || 'approved';
+      const isPinned = item.is_pinned ? 1 : 0;
+      const upvotes = parseInt(item.upvotes || 0, 10);
+      const downvotes = parseInt(item.downvotes || 0, 10);
+      const createdAt = item.created_at || new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-      if (isTwikoo) {
-        pagePath = item.url || item.href || '/';
-        pageTitle = item.title || '';
-        username = item.nick || '匿名';
-        email = item.mail || '';
-        website = item.link || '';
-        content = htmlToMarkdown(item.comment || '');
-        status = (item.isSpam || item.status === 'spam') ? 'rejected' : 'approved';
-        createdAt = item.created ? new Date(item.created).toISOString().replace('T', ' ').substring(0, 19) : new Date().toISOString();
-      } else {
-        pagePath = item.page_path || '/';
-        pageTitle = item.page_title || '';
-        username = item.username || '匿名';
-        email = item.email || '';
-        website = item.website || '';
-        content = item.content || '';
-        status = item.status || 'approved';
-        createdAt = item.created_at || new Date().toISOString();
-      }
+      if (!content) continue;
 
-      emailHash = email ? await hashEmail(email) : null;
-      ipHash = await hashIP('0.0.0.0');
+      const emailHash = email ? await hashEmail(email) : null;
+      const ipHash = defaultIpHash;
 
+      // Resolve parent_id from parent_original_id mapping
       let parentId = null;
-      if (isTwikoo && item.rid && twikooIdMap.has(item.rid)) {
-        parentId = twikooIdMap.get(item.rid);
-      } else if (!isTwikoo && item.parent_id) {
-        parentId = item.parent_id;
+      if (item.parent_original_id && originalIdMap.has(item.parent_original_id)) {
+        parentId = originalIdMap.get(item.parent_original_id);
+      } else if (item.parent_id && !isNaN(parseInt(item.parent_id, 10))) {
+        parentId = parseInt(item.parent_id, 10);
       }
 
       const res = await env.DB.prepare(
@@ -504,17 +520,27 @@ export async function importComments(request, env) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         pagePath, pageTitle, parentId, username, email, website, content,
-        status, item.is_pinned ? 1 : 0, item.upvotes || 0, item.downvotes || 0,
+        status, isPinned, upvotes, downvotes,
         ipHash, emailHash, createdAt
       ).run();
 
-      if (isTwikoo && item._id) {
-        twikooIdMap.set(item._id, res.meta.last_row_id);
+      const newId = res.meta?.last_row_id;
+      if (item.original_id && newId) {
+        originalIdMap.set(item.original_id, newId);
+      }
+
+      // Add trusted user if comment is approved
+      if (status === 'approved' && emailHash) {
+        try {
+          await env.DB.prepare(
+            'INSERT OR IGNORE INTO trusted_users (email_hash) VALUES (?)'
+          ).bind(emailHash).run();
+        } catch {}
       }
 
       importedCount++;
     } catch (err) {
-      console.error('Failed to import row:', err);
+      console.error('Failed to import comment row:', err);
     }
   }
 
@@ -522,27 +548,10 @@ export async function importComments(request, env) {
 
   return Response.json({
     success: true,
-    message: `成功导入 ${importedCount} / ${comments.length} 条评论`,
+    format: parseResult.format,
+    message: `成功导入 ${importedCount} / ${normalizedComments.length} 条评论（格式：${parseResult.format}）`,
     imported: importedCount,
-    total: comments.length,
+    total: normalizedComments.length,
   });
 }
 
-function htmlToMarkdown(html) {
-  if (!html) return '';
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<p>/gi, '')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
-    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
-    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
-    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
-    .replace(/<del>(.*?)<\/del>/gi, '~~$1~~')
-    .replace(/<code class=".*?">(.*?)<\/code>/gi, '`$1`')
-    .replace(/<code>(.*?)<\/code>/gi, '`$1`')
-    .replace(/<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
-    .replace(/<blockquote>([\s\S]*?)<\/blockquote>/gi, (m, c) => '> ' + c.trim().replace(/\n/g, '\n> '))
-    .replace(/<[^>]+>/g, '')
-    .trim();
-}

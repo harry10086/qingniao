@@ -38,7 +38,7 @@
   - **博主在线一键快捷回复（自动免审展示 + 异步邮件提醒）**；
   - 批量通过、批量拒绝、批量删除、一键置顶；
   - 信任机制：已审核通过的用户后续发评自动免审；
-  - **一键平滑迁移：支持 Twikoo 格式 JSON 数据无缝导入（自动 HTML 转 Markdown）与原生 JSON/CSV 导出**。
+  - **全面跨平台一键平滑迁移**：内置通用导入引擎，**原生支持 WordPress (WXR/XML & JSON)、Typecho、Waline、Artalk、Twikoo** 历史数据一键导入（自动递归还原回复树、HTML 智能转 Markdown、文件拖拽与实时诊断预览）与原生 JSON/CSV 导出。
 - 📧 **邮件异步通知**：
   - 集成 Resend API，新评论即时提醒博主，读者被回复时自动通知作者。
 - 🎨 **精美设计与主题自适应**：
@@ -69,8 +69,9 @@ qingniao/
 │   ├── hexo-butterfly/             # Hexo Butterfly 主题无缝接入模板
 │   └── vanilla-html/               # 原生静态网页 5 秒引入示例
 └── docs/                           # 进阶配置与指南
-    ├── RESEND_EMAIL.md             # Resend 邮件通知详细配置
-    └── TWIKOO_MIGRATION.md         # 从 Twikoo 一键平滑迁移教程
+    ├── IMPORT_GUIDE.md             # 多平台评论数据导入迁移指南 (WordPress/Typecho/Waline/Artalk/Twikoo)
+    └── RESEND_EMAIL.md             # Resend 邮件通知详细配置
+
 ```
 
 ---
@@ -173,8 +174,9 @@ curl -X POST https://your-worker-domain/api/admin/init \
 3. 登录后即可：
    - 审阅待审核评论，一键通过/拒绝/删除/置顶；
    - 关键词即时检索文章路径或标题；
-   - 💬 **直接在线回复留言**；
-   - 导入 Twikoo 历史数据或导出备份。
+   - 💬 **直接在线回复留言**（自动免审 + 邮件通知作者）；
+   - 📥 **跨平台数据导入**：一键拖入或粘贴 WordPress、Typecho、Waline、Artalk、Twikoo 历史评论文件进行平滑迁移；
+   - 📤 **数据导出与备份**：一键导出 JSON / CSV 格式数据。
 
 ---
 
@@ -196,8 +198,9 @@ curl -X POST https://your-worker-domain/api/admin/init \
 
 ## 📖 相关文档
 
+- 🔄 [多平台评论数据导入迁移指南 (WordPress / Typecho / Waline / Artalk / Twikoo)](docs/IMPORT_GUIDE.md)
+- 🕊️ [Twikoo 历史评论数据一键迁移教程](docs/TWIKOO_MIGRATION.md)
 - 📧 [Resend 邮件通知配置指南](docs/RESEND_EMAIL.md)
-- 🔄 [Twikoo 历史评论数据一键迁移教程](docs/TWIKOO_MIGRATION.md)
 - 🦋 [Hexo Butterfly 主题接入指引](integrations/hexo-butterfly/README.md)
 
 ---

@@ -381,23 +381,26 @@
     .modal {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 24px;
-      max-width: 500px;
-      width: 90%;
-      max-height: 80vh;
+      max-width: 580px;
+      width: 92%;
+      max-height: 85vh;
       overflow-y: auto;
       box-shadow: var(--shadow-hover);
     }
 
     .modal h3 {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .modal textarea {
       width: 100%;
-      min-height: 200px;
+      min-height: 140px;
       padding: 12px;
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -407,16 +410,64 @@
       font-size: 12px;
       resize: vertical;
       outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
     }
 
     .modal textarea:focus {
       border-color: var(--primary);
     }
 
+    .import-dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      background: var(--bg);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+
+    .import-dropzone:hover, .import-dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .import-dropzone-icon {
+      font-size: 32px;
+      margin-bottom: 6px;
+    }
+
+    .import-preview-box {
+      background: var(--primary-light);
+      border: 1px solid rgba(73, 177, 245, 0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text);
+      display: none;
+    }
+
+    .import-preview-box.active {
+      display: block;
+    }
+
+    .import-preview-box .stat-badge {
+      display: inline-block;
+      background: var(--bg-card);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      color: var(--primary);
+      margin: 0 3px;
+    }
+
     .modal-actions {
       display: flex;
       gap: 8px;
-      margin-top: 16px;
+      margin-top: 18px;
       justify-content: flex-end;
     }
 
@@ -535,19 +586,46 @@
 <!-- Import Modal -->
 <div class="modal-overlay" id="import-modal">
   <div class="modal">
-    <h3>📥 导入评论</h3>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
-      支持 MianaoComment 原生格式和 Twikoo 格式（JSON）。粘贴 JSON 数据：
-    </p>
-    <textarea id="import-data" placeholder='粘贴 JSON 数据...'></textarea>
-    <div style="margin-top:8px">
-      <label style="font-size:13px;color:var(--text-secondary)">
-        <input type="checkbox" id="import-twikoo"> 标记为 Twikoo 格式
+    <h3>📥 导入评论数据</h3>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">
+        来源平台格式
       </label>
+      <select id="import-format" class="form-input" style="padding:8px 12px;font-size:13px" onchange="triggerImportPreview()">
+        <option value="auto">🤖 智能自动检测 (推荐)</option>
+        <option value="wordpress">🔷 WordPress (WXR/XML 或 JSON)</option>
+        <option value="typecho">🔶 Typecho (JSON 或 XML)</option>
+        <option value="waline">🟢 Waline (JSON)</option>
+        <option value="artalk">🟣 Artalk (Artrans/JSON)</option>
+        <option value="twikoo">🕊️ Twikoo (JSON)</option>
+        <option value="native">📦 Qingniao 原生 (JSON)</option>
+      </select>
     </div>
+
+    <!-- Dropzone -->
+    <div class="import-dropzone" id="import-dropzone" onclick="document.getElementById('import-file-input').click()">
+      <div class="import-dropzone-icon">📁</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px">
+        点击选择文件 或 拖拽文件到此处
+      </div>
+      <div style="font-size:12px;color:var(--text-muted)">
+        支持 .json / .xml (WXR) 文件
+      </div>
+      <input type="file" id="import-file-input" accept=".json,.xml,.txt" style="display:none" onchange="handleImportFile(this.files)">
+    </div>
+
+    <div style="margin:10px 0;text-align:center;font-size:12px;color:var(--text-muted)">— 或直接粘贴数据内容 —</div>
+
+    <textarea id="import-data" placeholder='粘贴 XML 或 JSON 数据文本...' oninput="triggerImportPreview()"></textarea>
+
+    <!-- Preview Box -->
+    <div class="import-preview-box" id="import-preview-box">
+      <div id="import-preview-content"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('import-modal')">取消</button>
-      <button class="btn btn-primary" onclick="doImport()">导入</button>
+      <button class="btn btn-primary" id="btn-do-import" onclick="doImport()">🚀 开始导入</button>
     </div>
   </div>
 </div>
@@ -967,6 +1045,8 @@
   // Import/Export
   function showImportModal() {
     document.getElementById('import-modal').classList.add('active')
+    initImportDropzone()
+    triggerImportPreview()
   }
 
   function showExportModal() {
@@ -977,28 +1057,143 @@
     document.getElementById(id).classList.remove('active')
   }
 
+  function initImportDropzone() {
+    const dropzone = document.getElementById('import-dropzone')
+    if (!dropzone || dropzone._inited) return
+    dropzone._inited = true
+
+    ;['dragenter', 'dragover'].forEach(name => {
+      dropzone.addEventListener(name, e => {
+        e.preventDefault()
+        e.stopPropagation()
+        dropzone.classList.add('dragover')
+      })
+    })
+
+    ;['dragleave', 'drop'].forEach(name => {
+      dropzone.addEventListener(name, e => {
+        e.preventDefault()
+        e.stopPropagation()
+        dropzone.classList.remove('dragover')
+      })
+    })
+
+    dropzone.addEventListener('drop', e => {
+      const dt = e.dataTransfer
+      const files = dt.files
+      if (files && files.length > 0) {
+        handleImportFile(files)
+      }
+    })
+  }
+
+  function handleImportFile(files) {
+    if (!files || files.length === 0) return
+    const file = files[0]
+    const reader = new FileReader()
+    reader.onload = function(e) {
+      const text = e.target.result
+      document.getElementById('import-data').value = text
+      // Auto detect format from extension
+      const ext = file.name.split('.').pop().toLowerCase()
+      const formatSelect = document.getElementById('import-format')
+      if (ext === 'xml') {
+        formatSelect.value = 'wordpress'
+      }
+      triggerImportPreview()
+      showToast(`已加载文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'success')
+    }
+    reader.onerror = function() {
+      showToast('读取文件失败', 'error')
+    }
+    reader.readAsText(file)
+  }
+
+  function triggerImportPreview() {
+    const text = (document.getElementById('import-data')?.value || '').trim()
+    const previewBox = document.getElementById('import-preview-box')
+    const previewContent = document.getElementById('import-preview-content')
+    const selectedFormat = document.getElementById('import-format')?.value || 'auto'
+
+    if (!text) {
+      previewBox.classList.remove('active')
+      previewContent.innerHTML = ''
+      return
+    }
+
+    try {
+      let detectedType = selectedFormat
+      let count = 0
+      let details = ''
+
+      if (text.includes('<rss') || text.includes('<wp:comment') || text.includes('xmlns:wp=')) {
+        detectedType = 'WordPress (WXR/XML)'
+        const matches = text.match(/<wp:comment>/gi)
+        count = matches ? matches.length : 0
+        const items = text.match(/<item>/gi)
+        details = items ? `涉及 ${items.length} 篇文章` : ''
+      } else {
+        let json
+        try {
+          json = JSON.parse(text)
+        } catch {
+          previewBox.classList.add('active')
+          previewContent.innerHTML = `<span style="color:var(--error)">⚠️ 输入内容既非合法 XML 也非 JSON 格式</span>`
+          return
+        }
+
+        if (json && typeof json === 'object') {
+          if (json.artrans || json.version || (Array.isArray(json.comments) && json.comments[0]?.page_key !== undefined)) {
+            detectedType = 'Artalk (JSON/Artrans)'
+            const list = json.comments || []
+            count = list.length
+            details = json.pages ? `含 ${json.pages.length} 个页面定义` : ''
+          } else {
+            const arr = Array.isArray(json) ? json : (json.comments || json.data || [])
+            count = arr.length
+            const first = arr[0] || {}
+            if (first.coid !== undefined || first.cid !== undefined) {
+              detectedType = 'Typecho (JSON)'
+            } else if (first.objectId !== undefined || first.insertedAt !== undefined || first.pid !== undefined) {
+              detectedType = 'Waline (JSON)'
+            } else if (first._id !== undefined && first.rid !== undefined) {
+              detectedType = 'Twikoo (JSON)'
+            } else if (first.comment_ID !== undefined || first.comment_author !== undefined) {
+              detectedType = 'WordPress (JSON)'
+            } else if (first.page_path !== undefined) {
+              detectedType = 'Qingniao 原生格式'
+            } else {
+              detectedType = selectedFormat === 'auto' ? '通用 JSON' : selectedFormat
+            }
+          }
+        }
+      }
+
+      previewBox.classList.add('active')
+      previewContent.innerHTML = `
+        <div style="font-weight:600;color:var(--primary);margin-bottom:4px">🔍 数据预览诊断</div>
+        <div>识别格式：<span class="stat-badge">${detectedType}</span></div>
+        <div style="margin-top:2px">解析评论：<span class="stat-badge">${count}</span> 条 ${details ? `(${details})` : ''}</div>
+      `
+    } catch (e) {
+      previewBox.classList.add('active')
+      previewContent.innerHTML = `<span style="color:var(--error)">⚠️ 预览解析异常: ${e.message}</span>`
+    }
+  }
+
   async function doImport() {
-    const raw = document.getElementById('import-data').value.trim()
-    const isTwikoo = document.getElementById('import-twikoo').checked
+    const raw = (document.getElementById('import-data')?.value || '').trim()
+    const format = document.getElementById('import-format')?.value || 'auto'
+    const btn = document.getElementById('btn-do-import')
 
     if (!raw) {
-      showToast('请粘贴 JSON 数据', 'error')
+      showToast('请选择文件或粘贴数据文本', 'error')
       return
     }
 
-    let body
-    try {
-      body = JSON.parse(raw)
-    } catch (e) {
-      showToast('JSON 格式错误', 'error')
-      return
-    }
-
-    if (isTwikoo) {
-      body = { format: 'twikoo', comments: Array.isArray(body) ? body : (body.data || body.comments || []) }
-    } else if (Array.isArray(body)) {
-      body = { comments: body }
-    }
+    const originalBtnText = btn.textContent
+    btn.disabled = true
+    btn.textContent = '⏳ 正在导入中...'
 
     try {
       const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/import`, {
@@ -1007,7 +1202,10 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          format: format,
+          data: raw
+        })
       })
       const data = await res.json()
 
@@ -1020,7 +1218,10 @@
         showToast(data.error || '导入失败', 'error')
       }
     } catch (err) {
-      showToast('导入失败', 'error')
+      showToast('网络错误，导入失败', 'error')
+    } finally {
+      btn.disabled = false
+      btn.textContent = originalBtnText
     }
   }
 
