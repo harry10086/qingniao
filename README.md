@@ -17,10 +17,12 @@
 ## ✨ 核心特性
 
 - ⚡ **极致性能**：依托 Cloudflare 全球边缘网络，配合 D1 SQLite 与 KV Edge 读写缓存，毫秒级极速响应。
-- 🛡️ **安全与反垃圾**：
+- 🛡️ **安全与反垃圾体系**：
   - 动态轻量级数学验证码（防机刷）；
   - 基于 KV 的 IP 级别滑动窗口速率限制（Rate Limiting）；
-  - 敏感词与垃圾推广内容自动拦截；
+  - **智能反垃圾规则引擎**：过量链接、手机号引流、灌水重复字符自动拦截；
+  - **动态敏感词词库**：支持后台在线单条/批量添加自定义敏感词，提供 **「直接拒绝 (Block)」** 与 **「转入待审核 (Pending)」** 双重处置策略；
+  - **IP 黑名单与一键封禁**：支持手动录入 IP 黑名单，或在管理后台对违规评论 **「一键封禁 IP」**；
   - 隐私保护：IP 匿名脱敏单向哈希，邮箱安全加密。
 - 📝 **现代化富文本体验**：
   - 内置精简 Markdown 解析引擎（支持加粗、斜体、删除线、行内代码、代码块、引用、链接等）；
@@ -44,6 +46,24 @@
 - 🎨 **精美设计与主题自适应**：
   - 现代圆角微阴影设计，CSS 变量轻松定制配色；
   - 完美自适应亮色（Light）与暗色（Dark）模式。
+
+---
+
+## 🎨 界面展示
+登录：
+![login](https://github.mianao.info/https://raw.githubusercontent.com/harry10086/picx-images-hosting/master/qingniao/login.webp)
+
+评论管理：
+![manage](https://github.mianao.info/https://raw.githubusercontent.com/harry10086/picx-images-hosting/master/qingniao/manage1.webp)
+
+导入：
+![import](https://github.mianao.info/https://raw.githubusercontent.com/harry10086/picx-images-hosting/master/qingniao/import.webp)
+
+评论：
+![comment](https://github.mianao.info/https://raw.githubusercontent.com/harry10086/picx-images-hosting/master/qingniao/comment.webp)
+
+垃圾管理：
+![spam](https://github.mianao.info/https://raw.githubusercontent.com/harry10086/picx-images-hosting/master/qingniao/spam.webp)
 
 ---
 
@@ -113,14 +133,37 @@ npx wrangler secret put CAPTCHA_SECRET
 npx wrangler secret put RESEND_API_KEY
 ```
 
-在 `server/wrangler.toml` 中按需完善你的站点信息：
+在 `server/wrangler.toml` 中按需填写你的**专属站点与博主信息**（所有配置均通过环境变量生效，无需修改任何后端源码）：
+
 ```toml
 [vars]
+# 允许跨域调用的博客域名，例如 "https://yourblog.com" 或 "*"
 CORS_ORIGIN = "*"
+
+# 你的博客网站名称（展示在邮件通知标题与落款中）
 SITE_NAME = "我的博客"
+
+# 你的博客网站地址（用于邮件通知中自动生成文章跳转链接）
 SITE_URL = "https://yourblog.com"
+
+# 评论后台管理访问地址（选填，方便在邮件中一键直达后台）
+ADMIN_URL = "https://yourblog.com/comment-admin/"
+
+# 博主接收新评论通知的邮箱
 ADMIN_EMAIL = "admin@yourblog.com"
+
+# 邮件发件人抬头（需与 Resend 验证的发送域名一致）
+SENDER_EMAIL = "青鸟评论通知 <noreply@yourblog.com>"
 ```
+
+| 变量名 | 必填 | 默认值 | 作用说明 |
+| :--- | :---: | :--- | :--- |
+| `CORS_ORIGIN` | 是 | `"*"` | 允许调用评论 API 的前端域名，多域名可用逗号隔开 |
+| `SITE_NAME` | 是 | `"青鸟评论系统"` | 博客站点名称，用于邮件标题与系统通知抬头 |
+| `SITE_URL` | 是 | `""` | 博客主站 URL，用于邮件中生成文章查看链接 |
+| `ADMIN_EMAIL` | 是 | `"admin@example.com"` | 博主邮箱，用于接收新评论提醒及博主徽章匹配 |
+| `ADMIN_URL` | 否 | `SITE_URL/comment-admin/` | 管理后台访问地址，用于邮件中一键直达 |
+| `SENDER_EMAIL`| 否 | `${SITE_NAME} <noreply@...>` | 邮件发件人名称与地址 |
 
 #### ④ 部署 Worker
 ```bash
@@ -175,6 +218,7 @@ curl -X POST https://your-worker-domain/api/admin/init \
    - 审阅待审核评论，一键通过/拒绝/删除/置顶；
    - 关键词即时检索文章路径或标题；
    - 💬 **直接在线回复留言**（自动免审 + 邮件通知作者）；
+   - 🛡️ **垃圾防护与 IP 黑名单**：在线维护敏感词（支持拒绝/待审策略），管理 IP 黑名单，支持在评论列表 **一键封禁恶意 IP** 并拒绝评论；
    - 📥 **跨平台数据导入**：一键拖入或粘贴 WordPress、Typecho、Waline、Artalk、Twikoo 历史评论文件进行平滑迁移；
    - 📤 **数据导出与备份**：一键导出 JSON / CSV 格式数据。
 

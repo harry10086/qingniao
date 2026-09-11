@@ -474,6 +474,60 @@ title: 评论管理
       justify-content: flex-end;
     }
 
+    .spam-tab-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+    }
+
+    .spam-tab-btn {
+      padding: 6px 14px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .spam-tab-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .spam-tab-btn.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .spam-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    .spam-table th, .spam-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-light);
+      text-align: left;
+    }
+
+    .spam-table th {
+      background: var(--bg);
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .spam-table tr:hover td {
+      background: var(--bg-hover);
+    }
+
     .toast {
       position: fixed;
       top: 20px;
@@ -574,6 +628,7 @@ title: 评论管理
 
       <div class="spacer"></div>
 
+      <button class="btn btn-outline btn-sm" onclick="showSpamModal()">🛡️ 垃圾防护</button>
       <button class="btn btn-outline btn-sm" onclick="showExportModal()">导出</button>
       <button class="btn btn-outline btn-sm" onclick="showImportModal()">导入</button>
     </div>
@@ -648,12 +703,98 @@ title: 评论管理
   </div>
 </div>
 
+<!-- Spam & Blacklist Modal -->
+<div class="modal-overlay" id="spam-modal">
+  <div class="modal" style="max-width:680px">
+    <h3>🛡️ 垃圾防护与黑名单管理</h3>
+    <div class="spam-tab-nav">
+      <button class="spam-tab-btn active" id="btn-tab-keywords" onclick="switchSpamTab('keywords')">📝 敏感词库</button>
+      <button class="spam-tab-btn" id="btn-tab-ips" onclick="switchSpamTab('ips')">🚫 IP 黑名单</button>
+    </div>
+
+    <!-- Tab 1: Keywords -->
+    <div id="pane-spam-keywords">
+      <div style="background:var(--bg);padding:14px;border-radius:8px;border:1px solid var(--border-light);margin-bottom:14px">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">➕ 批量添加敏感词</label>
+        <textarea id="spam-input-keywords" placeholder="输入敏感词，多个词请用换行或逗号分隔..." style="min-height:70px;margin-bottom:8px"></textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--text-secondary)">拦截策略:</span>
+            <select id="spam-input-action" class="form-input" style="padding:4px 8px;font-size:12px">
+              <option value="block">🚫 直接拒绝发评 (Block)</option>
+              <option value="pending">⏳ 转入待审核 (Pending)</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="doAddKeywords()">添加敏感词</button>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">已生效敏感词列表</span>
+        <span id="spam-keywords-count" style="font-size:12px;color:var(--text-muted)">共 0 条</span>
+      </div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        <table class="spam-table">
+          <thead>
+            <tr>
+              <th>敏感词</th>
+              <th style="width:100px">策略</th>
+              <th style="width:130px">添加时间</th>
+              <th style="width:60px;text-align:center">操作</th>
+            </tr>
+          </thead>
+          <tbody id="spam-keywords-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: Blocked IPs -->
+    <div id="pane-spam-ips" style="display:none">
+      <div style="background:var(--bg);padding:14px;border-radius:8px;border:1px solid var(--border-light);margin-bottom:14px">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">➕ 手动添加封禁 IP</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <input type="text" id="spam-input-ip" class="form-input" placeholder="输入 IP 地址 (如 1.2.3.4) 或 IP Hash" style="flex:2;min-width:180px">
+          <input type="text" id="spam-input-ip-remark" class="form-input" placeholder="封禁备注 (如 广告刷屏)" style="flex:1;min-width:120px">
+          <button class="btn btn-danger btn-sm" onclick="doAddBlockedIp()">加入黑名单</button>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted)">提示：输入明文 IP 会自动进行脱敏哈希加密存入数据库，保护访客隐私。</p>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">已封禁 IP 列表</span>
+        <span id="spam-ips-count" style="font-size:12px;color:var(--text-muted)">共 0 条</span>
+      </div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+        <table class="spam-table">
+          <thead>
+            <tr>
+              <th>IP Hash / 标识</th>
+              <th>备注</th>
+              <th style="width:130px">封禁时间</th>
+              <th style="width:60px;text-align:center">操作</th>
+            </tr>
+          </thead>
+          <tbody id="spam-ips-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('spam-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // Configuration
   const API_URL = (() => {
     const saved = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api');
     if (saved) return saved;
-    return 'https://comment.mianao.info';
+    return window.location.origin.includes('localhost') ? 'http://localhost:8787' : window.location.origin;
   })()
 
   let token = localStorage.getItem('mc-admin-token') || ''
@@ -806,7 +947,7 @@ title: 评论管理
         }
 
         const articlePath = c.page_path || '/'
-        const articleUrl = `https://mianao.info${articlePath.startsWith('/') ? '' : '/'}${articlePath}`
+        const articleUrl = articlePath.startsWith('http') ? articlePath : `${articlePath.startsWith('/') ? '' : '/'}${articlePath}`
         const displayTitle = (c.page_title && c.page_title.trim()) ? c.page_title : formatPathToTitle(c.page_path)
         const articleLink = `<a href="${escapeHtml(articleUrl)}" target="_blank" style="color:var(--primary);font-weight:500;font-size:12px" title="${escapeHtml(articleUrl)}">📄 ${escapeHtml(displayTitle)}</a>`
 
@@ -832,11 +973,12 @@ title: 评论管理
             <button class="btn btn-outline btn-sm" onclick="toggleAdminReplyBox(${c.id})">💬 回复</button>
             <button class="btn btn-sm ${c.is_pinned ? 'btn-pinned' : 'btn-pin'}" onclick="togglePin(${c.id},${c.is_pinned ? 0 : 1})">${c.is_pinned ? '📌 取消置顶' : '📌 置顶'}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteComment(${c.id})">🗑 删除</button>
+            <button class="btn btn-outline btn-sm" style="color:#ff4d4f;border-color:rgba(255,77,79,0.3)" title="拉黑该发评者 IP 并拒绝评论" onclick="blockCommentIpPrompt(${c.id},'${escapeHtml(c.username)}')">🛑 封禁 IP</button>
           </div>
           <div id="reply-box-${c.id}" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
             <div style="display:flex;gap:10px;margin-bottom:8px">
-              <input type="text" id="reply-name-${c.id}" class="form-input" value="博主" placeholder="回复姓名" style="max-width:130px">
-              <input type="email" id="reply-email-${c.id}" class="form-input" value="harry@mianao.info" placeholder="博主邮箱" style="max-width:210px">
+              <input type="text" id="reply-name-${c.id}" class="form-input" value="博主" placeholder="回复昵称" style="max-width:130px">
+              <input type="email" id="reply-email-${c.id}" class="form-input" value="" placeholder="博主邮箱 (选填)" style="max-width:210px">
             </div>
             <textarea id="reply-content-${c.id}" class="form-input" rows="3" placeholder="写下对 ${escapeHtml(c.username)} 的回复..." style="width:100%;margin-bottom:8px;resize:vertical"></textarea>
             <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -929,7 +1071,7 @@ title: 评论管理
     const contentInput = document.getElementById(`reply-content-${parentId}`)
 
     const username = nameInput ? nameInput.value.trim() : '博主'
-    const email = emailInput ? emailInput.value.trim() : 'harry@mianao.info'
+    const email = emailInput ? emailInput.value.trim() : ''
     const content = contentInput ? contentInput.value.trim() : ''
 
     if (!content) {
@@ -1251,6 +1393,213 @@ title: 评论管理
     }
   }
 
+  // Spam & Blacklist Management
+  let spamKeywordsData = []
+  let spamIpsData = []
+
+  function showSpamModal() {
+    document.getElementById('spam-modal').classList.add('active')
+    loadSpamRules()
+  }
+
+  function switchSpamTab(tab) {
+    document.getElementById('btn-tab-keywords').classList.toggle('active', tab === 'keywords')
+    document.getElementById('btn-tab-ips').classList.toggle('active', tab === 'ips')
+    document.getElementById('pane-spam-keywords').style.display = tab === 'keywords' ? 'block' : 'none'
+    document.getElementById('pane-spam-ips').style.display = tab === 'ips' ? 'block' : 'none'
+  }
+
+  async function loadSpamRules() {
+    const kwTbody = document.getElementById('spam-keywords-tbody')
+    const ipTbody = document.getElementById('spam-ips-tbody')
+    kwTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">加载中...</td></tr>'
+    ipTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">加载中...</td></tr>'
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/rules`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+
+      spamKeywordsData = data.keywords || []
+      spamIpsData = data.blockedIps || []
+
+      renderSpamKeywords()
+      renderSpamIps()
+    } catch (e) {
+      kwTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--error)">加载失败</td></tr>'
+      ipTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--error)">加载失败</td></tr>'
+    }
+  }
+
+  function renderSpamKeywords() {
+    const tbody = document.getElementById('spam-keywords-tbody')
+    document.getElementById('spam-keywords-count').textContent = `共 ${spamKeywordsData.length} 条`
+
+    if (spamKeywordsData.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">暂无自定义敏感词 (系统内置通用词库仍生效)</td></tr>'
+      return
+    }
+
+    tbody.innerHTML = spamKeywordsData.map(k => `
+      <tr>
+        <td style="font-weight:600">${escapeHtml(k.keyword)}</td>
+        <td>
+          <span style="font-size:11px;padding:2px 6px;border-radius:4px;${k.action === 'block' ? 'background:rgba(255,77,79,0.15);color:var(--error)' : 'background:rgba(250,173,20,0.15);color:var(--warn)'}">
+            ${k.action === 'block' ? '🚫 拒绝' : '⏳ 待审'}
+          </span>
+        </td>
+        <td style="color:var(--text-muted)">${new Date(k.created_at.includes('T') ? k.created_at : k.created_at + 'Z').toLocaleDateString()}</td>
+        <td style="text-align:center">
+          <button class="btn btn-outline btn-sm" style="color:var(--error);padding:2px 6px" onclick="doDeleteKeyword(${k.id})">删除</button>
+        </td>
+      </tr>
+    `).join('')
+  }
+
+  function renderSpamIps() {
+    const tbody = document.getElementById('spam-ips-tbody')
+    document.getElementById('spam-ips-count').textContent = `共 ${spamIpsData.length} 条`
+
+    if (spamIpsData.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">暂无封禁 IP 记录</td></tr>'
+      return
+    }
+
+    tbody.innerHTML = spamIpsData.map(ip => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px;color:var(--text-secondary)">
+          ${escapeHtml(ip.ip_raw ? ip.ip_raw : ip.ip_hash)}
+        </td>
+        <td style="color:var(--text-secondary)">${escapeHtml(ip.remark || '-')}</td>
+        <td style="color:var(--text-muted)">${new Date(ip.created_at.includes('T') ? ip.created_at : ip.created_at + 'Z').toLocaleDateString()}</td>
+        <td style="text-align:center">
+          <button class="btn btn-outline btn-sm" style="color:var(--primary);padding:2px 6px" onclick="doDeleteBlockedIp(${ip.id})">解封</button>
+        </td>
+      </tr>
+    `).join('')
+  }
+
+  async function doAddKeywords() {
+    const raw = document.getElementById('spam-input-keywords').value.trim()
+    const action = document.getElementById('spam-input-action').value
+    if (!raw) {
+      showToast('请输入敏感词', 'error')
+      return
+    }
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/keywords`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ keywords: raw, action })
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast(data.message, 'success')
+        document.getElementById('spam-input-keywords').value = ''
+        loadSpamRules()
+      } else {
+        showToast(data.error || '添加失败', 'error')
+      }
+    } catch (e) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  async function doDeleteKeyword(id) {
+    if (!confirm('确认删除该敏感词？')) return
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/keywords/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('已删除敏感词', 'success')
+        loadSpamRules()
+      }
+    } catch (e) {
+      showToast('删除失败', 'error')
+    }
+  }
+
+  async function doAddBlockedIp() {
+    const ip = document.getElementById('spam-input-ip').value.trim()
+    const remark = document.getElementById('spam-input-ip-remark').value.trim()
+    if (!ip) {
+      showToast('请输入 IP 或 IP Hash', 'error')
+      return
+    }
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/ips`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ip_raw: ip, remark })
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('已添加 IP 封禁', 'success')
+        document.getElementById('spam-input-ip').value = ''
+        document.getElementById('spam-input-ip-remark').value = ''
+        loadSpamRules()
+      } else {
+        showToast(data.error || '添加失败', 'error')
+      }
+    } catch (e) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  async function doDeleteBlockedIp(id) {
+    if (!confirm('确认解除该 IP 的封禁？')) return
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/ips/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('已解除封禁', 'success')
+        loadSpamRules()
+      }
+    } catch (e) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  async function blockCommentIpPrompt(commentId, username) {
+    if (!confirm(`确认拉黑发评者「${username}」的 IP 地址并拒绝该评论？\n拉黑后该 IP 将无法再次发表评论。`)) return
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/spam/block-comment-ip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ comment_id: commentId, action: 'reject' })
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast(data.message, 'success')
+        loadComments()
+        loadStats()
+      } else {
+        showToast(data.error || '封禁失败', 'error')
+      }
+    } catch (e) {
+      showToast('操作失败', 'error')
+    }
+  }
+
   function escapeHtml(str) {
     if (!str) return ''
     const div = document.createElement('div')
@@ -1283,7 +1632,7 @@ title: 评论管理
 document.addEventListener('DOMContentLoaded', () => {
   const apiInput = document.getElementById('login-api');
   if (apiInput) {
-    apiInput.value = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || 'https://comment.mianao.info';
+    apiInput.value = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || (window.location.origin.includes('localhost') ? 'http://localhost:8787' : '');
   }
 });
 </script>

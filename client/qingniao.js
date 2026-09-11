@@ -124,7 +124,7 @@
 
       const nameInput = this.createInput('mc-input-name', '昵称 *', 'text', true)
       const emailInput = this.createInput('mc-input-email', '邮箱 *', 'email', true)
-      const siteInput = this.createInput('mc-input-site', '网站 (如 mianao.info)', 'text', false)
+      const siteInput = this.createInput('mc-input-site', '网站 (如 example.com)', 'text', false)
 
       infoRow.appendChild(nameInput)
       infoRow.appendChild(emailInput)

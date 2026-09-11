@@ -555,3 +555,253 @@ export async function importComments(request, env) {
   });
 }
 
+/**
+ * GET /api/admin/spam/rules
+ * Get all blocked keywords and blocked IPs
+ */
+export async function getSpamRules(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  try {
+    const keywords = await env.DB.prepare(
+      'SELECT id, keyword, action, created_at FROM blocked_keywords ORDER BY id DESC'
+    ).all();
+
+    const blockedIps = await env.DB.prepare(
+      'SELECT id, ip_hash, ip_raw, remark, created_at FROM blocked_ips ORDER BY id DESC'
+    ).all();
+
+    return Response.json({
+      success: true,
+      keywords: keywords.results || [],
+      blockedIps: blockedIps.results || [],
+    });
+  } catch (err) {
+    return Response.json({
+      success: true,
+      keywords: [],
+      blockedIps: [],
+      error: '读取规则失败，请确保已执行最新的数据库建表语句'
+    });
+  }
+}
+
+/**
+ * POST /api/admin/spam/keywords
+ * Add blocked keyword(s)
+ */
+export async function addBlockedKeywords(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: '请求格式错误' }, { status: 400 });
+  }
+
+  const { keywords, action = 'block' } = body;
+  if (!keywords) {
+    return Response.json({ error: '敏感词内容不能为空' }, { status: 400 });
+  }
+
+  let list = [];
+  if (Array.isArray(keywords)) {
+    list = keywords.map(k => String(k).trim()).filter(Boolean);
+  } else if (typeof keywords === 'string') {
+    list = keywords
+      .split(/[\n,，]+/)
+      .map(k => k.trim())
+      .filter(Boolean);
+  }
+
+  if (list.length === 0) {
+    return Response.json({ error: '未提供有效的敏感词' }, { status: 400 });
+  }
+
+  let added = 0;
+  for (const kw of list) {
+    try {
+      await env.DB.prepare(
+        'INSERT OR IGNORE INTO blocked_keywords (keyword, action) VALUES (?, ?)'
+      ).bind(kw, ['block', 'pending'].includes(action) ? action : 'block').run();
+      added++;
+    } catch {}
+  }
+
+  // Purge spam keywords cache
+  const KV = env.KV || env.mianaoinfoKV;
+  if (KV) {
+    await KV.delete('kv_spam_rules:keywords');
+  }
+
+  return Response.json({
+    success: true,
+    message: `成功添加 ${added} 个敏感词`,
+    added
+  });
+}
+
+/**
+ * DELETE /api/admin/spam/keywords/:id
+ * Delete a blocked keyword
+ */
+export async function deleteBlockedKeyword(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const id = parseInt(pathParts[pathParts.length - 1], 10);
+
+  if (isNaN(id)) {
+    return Response.json({ error: '无效的 ID' }, { status: 400 });
+  }
+
+  await env.DB.prepare('DELETE FROM blocked_keywords WHERE id = ?').bind(id).run();
+
+  const KV = env.KV || env.mianaoinfoKV;
+  if (KV) {
+    await KV.delete('kv_spam_rules:keywords');
+  }
+
+  return Response.json({ success: true, message: '敏感词已删除' });
+}
+
+/**
+ * POST /api/admin/spam/ips
+ * Add IP or IP Hash to blacklist
+ */
+export async function addBlockedIp(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: '请求格式错误' }, { status: 400 });
+  }
+
+  const { ip_hash, ip_raw, remark = '' } = body;
+
+  let targetHash = (ip_hash || '').trim();
+  let targetRaw = (ip_raw || '').trim();
+
+  if (!targetHash && targetRaw) {
+    targetHash = await hashIP(targetRaw);
+  }
+
+  if (!targetHash) {
+    return Response.json({ error: 'IP 或 IP Hash 不能为空' }, { status: 400 });
+  }
+
+  try {
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO blocked_ips (ip_hash, ip_raw, remark) VALUES (?, ?, ?)'
+    ).bind(targetHash, targetRaw, remark.trim()).run();
+
+    const KV = env.KV || env.mianaoinfoKV;
+    if (KV) {
+      await KV.delete(`kv_blocked_ip:${targetHash}`);
+    }
+
+    return Response.json({ success: true, message: '已成功将 IP 加入黑名单' });
+  } catch (err) {
+    return Response.json({ error: '添加 IP 黑名单失败' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/admin/spam/ips/:id
+ * Remove IP from blacklist
+ */
+export async function deleteBlockedIp(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const id = parseInt(pathParts[pathParts.length - 1], 10);
+
+  if (isNaN(id)) {
+    return Response.json({ error: '无效的 ID' }, { status: 400 });
+  }
+
+  const record = await env.DB.prepare('SELECT ip_hash FROM blocked_ips WHERE id = ?').bind(id).first();
+  if (record && record.ip_hash) {
+    const KV = env.KV || env.mianaoinfoKV;
+    if (KV) {
+      await KV.delete(`kv_blocked_ip:${record.ip_hash}`);
+    }
+  }
+
+  await env.DB.prepare('DELETE FROM blocked_ips WHERE id = ?').bind(id).run();
+
+  return Response.json({ success: true, message: '已解除 IP 封禁' });
+}
+
+/**
+ * POST /api/admin/spam/block-comment-ip
+ * Block the IP of a specific comment and optionally reject its comments
+ */
+export async function blockCommentIp(request, env) {
+  const authError = await requireAdmin(request, env);
+  if (authError) return authError;
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: '请求格式错误' }, { status: 400 });
+  }
+
+  const { comment_id, action = 'reject' } = body;
+  if (!comment_id) {
+    return Response.json({ error: '缺少评论 ID' }, { status: 400 });
+  }
+
+  const comment = await env.DB.prepare(
+    'SELECT id, ip_hash, username, page_path FROM comments WHERE id = ?'
+  ).bind(parseInt(comment_id, 10)).first();
+
+  if (!comment) {
+    return Response.json({ error: '目标评论不存在' }, { status: 404 });
+  }
+
+  if (!comment.ip_hash) {
+    return Response.json({ error: '该评论无有效的 IP 记录' }, { status: 400 });
+  }
+
+  const remark = `从评论 #${comment.id} (${comment.username}) 封禁`;
+
+  // Insert into blocked_ips
+  await env.DB.prepare(
+    'INSERT OR IGNORE INTO blocked_ips (ip_hash, ip_raw, remark) VALUES (?, ?, ?)'
+  ).bind(comment.ip_hash, '', remark).run();
+
+  const KV = env.KV || env.mianaoinfoKV;
+  if (KV) {
+    await KV.delete(`kv_blocked_ip:${comment.ip_hash}`);
+  }
+
+  // Update or delete related comments from this IP
+  if (action === 'delete') {
+    await env.DB.prepare('DELETE FROM comments WHERE ip_hash = ?').bind(comment.ip_hash).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE comments SET status = 'rejected', updated_at = datetime('now') WHERE ip_hash = ?"
+    ).bind(comment.ip_hash).run();
+  }
+
+  await purgeKvCache(env, comment.page_path);
+
+  return Response.json({
+    success: true,
+    message: `已成功拉黑该评论 IP (${comment.ip_hash.substring(0, 8)}...)，并已${action === 'delete' ? '清理' : '拒绝'}相关评论`
+  });
+}
+
+

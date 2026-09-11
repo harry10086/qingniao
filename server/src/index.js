@@ -8,7 +8,8 @@ import { voteComment, getVoteStatus } from './routes/votes.js';
 import {
   adminLogin, adminLogout, getAdminComments, updateComment,
   batchUpdateComments, exportComments, importComments, initAdmin, checkAdmin,
-  adminReplyComment
+  adminReplyComment, getSpamRules, addBlockedKeywords, deleteBlockedKeyword,
+  addBlockedIp, deleteBlockedIp, blockCommentIp
 } from './routes/admin.js';
 
 const router = Router();
@@ -18,14 +19,16 @@ const router = Router();
  */
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin');
-  let allowedOrigin = env.CORS_ORIGIN || 'https://mianao.info';
+  let allowedOrigin = env.CORS_ORIGIN || '*';
 
-  if (origin) {
+  if (origin && allowedOrigin !== '*') {
     const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
-    const isProd = origin === 'https://mianao.info' || origin === 'https://www.mianao.info';
-    if (isLocalhost || isProd) {
+    const configuredOrigins = allowedOrigin.split(',').map(o => o.trim());
+    if (isLocalhost || configuredOrigins.includes(origin)) {
       allowedOrigin = origin;
     }
+  } else if (allowedOrigin === '*' && origin) {
+    allowedOrigin = origin;
   }
 
   return {
@@ -175,6 +178,37 @@ router.post('/api/admin/import', async (request, env) => {
 // Direct admin reply to comment
 router.post('/api/admin/comments/reply', async (request, env) => {
   const response = await adminReplyComment(request, env);
+  return withCors(request, response, env);
+});
+
+// Spam Rules & Blacklist
+router.get('/api/admin/spam/rules', async (request, env) => {
+  const response = await getSpamRules(request, env);
+  return withCors(request, response, env);
+});
+
+router.post('/api/admin/spam/keywords', async (request, env) => {
+  const response = await addBlockedKeywords(request, env);
+  return withCors(request, response, env);
+});
+
+router.delete('/api/admin/spam/keywords/:id', async (request, env) => {
+  const response = await deleteBlockedKeyword(request, env);
+  return withCors(request, response, env);
+});
+
+router.post('/api/admin/spam/ips', async (request, env) => {
+  const response = await addBlockedIp(request, env);
+  return withCors(request, response, env);
+});
+
+router.delete('/api/admin/spam/ips/:id', async (request, env) => {
+  const response = await deleteBlockedIp(request, env);
+  return withCors(request, response, env);
+});
+
+router.post('/api/admin/spam/block-comment-ip', async (request, env) => {
+  const response = await blockCommentIp(request, env);
   return withCors(request, response, env);
 });
 

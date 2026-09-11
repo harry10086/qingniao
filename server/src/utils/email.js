@@ -19,7 +19,7 @@ async function sendResendEmail(apiKey, { from, to, subject, html }) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: from || '不吐不快博客 <harry@mianao.info>',
+        from: from || `${env?.SITE_NAME || '青鸟评论系统'} <noreply@example.com>`,
         to: Array.isArray(to) ? to : [to],
         subject,
         html
@@ -47,11 +47,13 @@ export async function notifyAdminNewComment(env, comment) {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return;
 
-  const adminEmail = env.ADMIN_EMAIL || 'harry@mianao.info';
-  const sender = env.SENDER_EMAIL || '不吐不快博客 <harry@mianao.info>';
+  const siteName = env.SITE_NAME || '青鸟评论系统';
+  const siteUrl = (env.SITE_URL || '').replace(/\/+$/, '');
+  const adminEmail = env.ADMIN_EMAIL || 'admin@example.com';
+  const sender = env.SENDER_EMAIL || `${siteName} <noreply@example.com>`;
   const articleTitle = comment.page_title || comment.page_path;
-  const articleUrl = `https://mianao.info${comment.page_path.startsWith('/') ? '' : '/'}${comment.page_path}`;
-  const adminUrl = 'https://mianao.info/comment-admin/';
+  const articleUrl = siteUrl ? `${siteUrl}${comment.page_path.startsWith('/') ? '' : '/'}${comment.page_path}` : comment.page_path;
+  const adminUrl = env.ADMIN_URL || (siteUrl ? `${siteUrl}/comment-admin/` : '#');
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -72,11 +74,11 @@ export async function notifyAdminNewComment(env, comment) {
 
         <div style="text-align: center; margin-top: 28px;">
           <a href="${adminUrl}" style="display: inline-block; background: #49b1f5; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">进入后台管理评论</a>
-          <a href="${articleUrl}" style="display: inline-block; background: #f0f0f0; color: #666; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; margin-left: 10px;">查看文章</a>
+          ${siteUrl ? `<a href="${articleUrl}" style="display: inline-block; background: #f0f0f0; color: #666; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; margin-left: 10px;">查看文章</a>` : ''}
         </div>
       </div>
       <div style="background: #f7f8fa; padding: 14px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee;">
-        不吐不快 (mianao.info) 评论系统通知
+        ${escapeHtml(siteName)} 评论系统通知
       </div>
     </div>
   `;
@@ -101,9 +103,11 @@ export async function notifyUserReply(env, comment, parentComment) {
     return;
   }
 
-  const sender = env.SENDER_EMAIL || '不吐不快博客 <harry@mianao.info>';
+  const siteName = env.SITE_NAME || '青鸟评论系统';
+  const siteUrl = (env.SITE_URL || '').replace(/\/+$/, '');
+  const sender = env.SENDER_EMAIL || `${siteName} <noreply@example.com>`;
   const articleTitle = comment.page_title || comment.page_path;
-  const articleUrl = `https://mianao.info${comment.page_path.startsWith('/') ? '' : '/'}${comment.page_path}#mc-comment-${comment.id}`;
+  const articleUrl = siteUrl ? `${siteUrl}${comment.page_path.startsWith('/') ? '' : '/'}${comment.page_path}#mc-comment-${comment.id}` : comment.page_path;
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -128,11 +132,11 @@ export async function notifyUserReply(env, comment, parentComment) {
         </div>
 
         <div style="text-align: center; margin-top: 28px;">
-          <a href="${articleUrl}" style="display: inline-block; background: #49b1f5; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">查看并回复</a>
+          ${siteUrl ? `<a href="${articleUrl}" style="display: inline-block; background: #49b1f5; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">查看并回复</a>` : ''}
         </div>
       </div>
       <div style="background: #f7f8fa; padding: 14px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee;">
-        如果您不希望收到此类通知，可直接忽略此邮件 · 不吐不快 (mianao.info)
+        如果您不希望收到此类通知，可直接忽略此邮件 · ${escapeHtml(siteName)}
       </div>
     </div>
   `;

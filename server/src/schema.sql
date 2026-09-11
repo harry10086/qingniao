@@ -50,3 +50,23 @@ CREATE TABLE IF NOT EXISTS trusted_users (
   email_hash TEXT UNIQUE NOT NULL,
   first_approved_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Blocked Keywords Table (Spam keyword rules)
+CREATE TABLE IF NOT EXISTS blocked_keywords (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  keyword TEXT UNIQUE NOT NULL,
+  action TEXT DEFAULT 'block' CHECK(action IN ('block', 'pending')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_blocked_keywords ON blocked_keywords(keyword);
+
+-- Blocked IPs Table (IP blacklist)
+CREATE TABLE IF NOT EXISTS blocked_ips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip_hash TEXT UNIQUE NOT NULL,
+  ip_raw TEXT DEFAULT '',
+  remark TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_blocked_ips_hash ON blocked_ips(ip_hash);
+

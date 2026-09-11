@@ -4,7 +4,7 @@
  */
 import { verifyCaptcha } from '../middleware/captcha.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { checkSpam, validateUsername, validateEmail } from '../utils/spam.js';
+import { checkSpam, checkIpBlocked, getDynamicKeywords, validateUsername, validateEmail } from '../utils/spam.js';
 import { hashIP, hashEmail, md5Email, generateCaptchaSignature } from '../utils/crypto.js';
 import { notifyAdminNewComment, notifyUserReply } from '../utils/email.js';
 import { getFromKv, saveToKv, purgeKvCache } from '../utils/kvCache.js';
@@ -74,7 +74,7 @@ export async function getComments(request, env) {
   }
 
   // Build comment tree
-  const adminEmail = (env.ADMIN_EMAIL || 'harry@mianao.info').trim().toLowerCase();
+  const adminEmail = (env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
   const commentTree = buildCommentTree(comments.results, allReplies, adminEmail);
 
   const resultObj = {
@@ -97,7 +97,7 @@ export async function getComments(request, env) {
 /**
  * Build nested comment tree from flat list
  */
-function buildCommentTree(topLevel, replies, adminEmail = 'harry@mianao.info') {
+function buildCommentTree(topLevel, replies, adminEmail = 'admin@example.com') {
   const replyMap = new Map();
 
   // Group replies by parent_id
@@ -159,8 +159,21 @@ export async function createComment(request, env, ctx) {
     return Response.json({ error: '评论内容不能超过500字' }, { status: 400 });
   }
 
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const ipHash = await hashIP(ip);
+  const emailH = await hashEmail(email.trim().toLowerCase());
+
+  // Check IP Blacklist
+  const isBlockedIp = await checkIpBlocked(env, ipHash);
+  if (isBlockedIp) {
+    return Response.json({ error: '当前网络环境已被限制发表评论' }, { status: 403 });
+  }
+
+  // Load dynamic keywords from DB/KV
+  const dynamicKeywords = await getDynamicKeywords(env);
+
   // Validate username
-  const usernameCheck = validateUsername(username);
+  const usernameCheck = validateUsername(username, dynamicKeywords);
   if (!usernameCheck.valid) {
     return Response.json({ error: usernameCheck.reason }, { status: 400 });
   }
@@ -182,8 +195,8 @@ export async function createComment(request, env, ctx) {
     }
   }
 
-  // Check spam
-  const spamCheck = checkSpam(content);
+  // Check spam (both built-in and dynamic keywords)
+  const spamCheck = checkSpam(content, dynamicKeywords);
   if (spamCheck.isSpam) {
     return Response.json({ error: spamCheck.reason }, { status: 400 });
   }
@@ -202,16 +215,19 @@ export async function createComment(request, env, ctx) {
     }
   }
 
-  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  const ipHash = await hashIP(ip);
-  const emailH = await hashEmail(email.trim().toLowerCase());
-
   // Check if this user is trusted (previously approved)
   const trusted = await env.DB.prepare(
     'SELECT id FROM trusted_users WHERE email_hash = ?'
   ).bind(emailH).first();
 
-  const status = trusted ? 'approved' : 'pending';
+  // If flagged as 'pending' by spam rule, force pending review even if trusted
+  let status = 'pending';
+  if (spamCheck.action === 'pending') {
+    status = 'pending';
+  } else if (trusted) {
+    status = 'approved';
+  }
+
   const cleanTitle = (pageTitle || '').trim();
 
   const result = await env.DB.prepare(
@@ -375,7 +391,7 @@ export async function getCaptcha(request, env) {
   }
 
   const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes from now
-  const secret = env.CAPTCHA_SECRET || 'mianao-captcha-secret-salt-2026';
+  const secret = env.CAPTCHA_SECRET || 'qingniao-captcha-secret-salt-2026';
   const signature = await generateCaptchaSignature(answer, expiry, secret);
   const token = `${expiry}.${signature}`;
 
