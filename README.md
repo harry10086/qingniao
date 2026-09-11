@@ -199,7 +199,6 @@ curl -X POST https://your-worker-domain/api/admin/init \
 ## 📖 相关文档
 
 - 🔄 [多平台评论数据导入迁移指南 (WordPress / Typecho / Waline / Artalk / Twikoo)](docs/IMPORT_GUIDE.md)
-- 🕊️ [Twikoo 历史评论数据一键迁移教程](docs/TWIKOO_MIGRATION.md)
 - 📧 [Resend 邮件通知配置指南](docs/RESEND_EMAIL.md)
 - 🦋 [Hexo Butterfly 主题接入指引](integrations/hexo-butterfly/README.md)
 
