@@ -1,0 +1,33 @@
+script.
+  (() => {
+    const getCommentUrl = () => {
+      const eleGroup = document.querySelectorAll('#recent-posts .article-title')
+      let urlArray = []
+      eleGroup.forEach(i => {
+        urlArray.push(i.getAttribute('href'))
+      })
+      return urlArray
+    }
+
+    const getCount = () => {
+      const urls = getCommentUrl()
+      if (!urls.length) return
+
+      const apiUrl = '!{theme.qingniao || theme.butubuk || theme.qingniao.apiUrl}'
+      fetch(apiUrl + '/api/count?paths=' + encodeURIComponent(urls.join(',')))
+        .then(res => res.json())
+        .then(data => {
+          const counts = data.counts || {}
+          document.querySelectorAll('#recent-posts .qingniao-count').forEach((item, index) => {
+            if (urls[index] && counts[urls[index]] !== undefined) {
+              item.textContent = counts[urls[index]]
+            }
+          })
+        })
+        .catch(err => {
+          console.log(err)
+        })
+    }
+
+    window.pjax ? getCount() : window.addEventListener('load', getCount)
+  })()

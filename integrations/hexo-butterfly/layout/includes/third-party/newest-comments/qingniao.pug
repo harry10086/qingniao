@@ -1,0 +1,39 @@
+!= partial("includes/third-party/newest-comments/common.pug", {}, { cache: true })
+
+script.
+  window.addEventListener('load', () => {
+    const keyName = 'qingniao-newest-comments-v3'
+    const { changeContent, generateHtml, run } = window.newestComments
+
+    const getComment = ele => {
+      const loadAndFetch = () => {
+        const apiUrl = '!{theme.qingniao || theme.butubuk || theme.qingniao.apiUrl}'
+        fetch(apiUrl + '/api/recent?limit=!{newestCommentsLimit}')
+          .then(res => res.json())
+          .then(data => {
+            const comments = (data.comments || []).map(e => {
+              const hash = e.email_hash || ''
+              const avatarUrl = hash ? `https://weavatar.com/avatar/${hash}?d=identicon` : 'https://weavatar.com/avatar/00000000000000000000000000000000?d=identicon'
+              return {
+                'content': changeContent(e.content || ''),
+                'avatar': avatarUrl,
+                'nick': e.username || '匿名',
+                'url': e.page_path + '#mc-comment-' + e.id,
+                'date': new Date(e.created_at.includes('T') ? e.created_at : e.created_at + 'Z').toISOString()
+              }
+            })
+
+            btf.saveToLocal.set(keyName, JSON.stringify(comments), !{theme.aside.card_newest_comments.storage}/(60*24))
+            generateHtml(comments, ele)
+          })
+          .catch(err => {
+            console.error(err)
+            ele.textContent = "!{_p('aside.card_newest_comments.error')}"
+          })
+      }
+
+      loadAndFetch()
+    }
+
+    run(keyName, getComment)
+  })

@@ -1,0 +1,65 @@
+- const { apiUrl, option } = theme.qingniao || theme.butubuk || theme.qingniao
+- const { use, lazyload } = theme.comments
+
+script.
+  (() => {
+    const option = !{JSON.stringify(option || {})}
+
+    const getCount = () => {
+      const countElement = document.getElementById('qingniao-count')
+      if (!countElement) return
+      Qingniao.getCount('!{apiUrl}', [window.location.pathname]).then(counts => {
+        const count = counts[window.location.pathname] || 0
+        countElement.textContent = count
+      }).catch(err => {
+        console.error(err)
+      })
+    }
+
+    const init = (el, path) => {
+      const container = (el && typeof el.querySelector === 'function') 
+        ? el.querySelector('#qingniao-wrap') 
+        : document.getElementById('qingniao-wrap')
+      
+      if (!container) return
+      const currentPath = (typeof path === 'string' && path) ? path : location.pathname
+
+      Qingniao.init({
+        el: container,
+        apiUrl: '!{apiUrl}',
+        path: currentPath,
+        ...option
+      })
+
+      !{theme.comments.count ? `GLOBAL_CONFIG_SITE.pageType === 'post' && getCount()` : ''}
+    }
+
+    const loadQingniao = (el, path) => {
+      if (typeof window.Qingniao === 'function' || typeof window.Qingniao === 'object') {
+        Promise.resolve(btf.getCSS('!{url_for("/css/qingniao.css")}')).then(() => {
+          setTimeout(() => init(el, path), 0)
+        })
+      } else {
+        Promise.all([
+          btf.getCSS('!{url_for("/css/qingniao.css")}'),
+          btf.getScript('!{url_for("/js/qingniao.js")}')
+        ]).then(() => init(el, path))
+      }
+    }
+
+    const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+
+    if (isShuoshuo) {
+      '!{use[0]}'.toLowerCase() === 'qingniao'
+        ? window.shuoshuoComment = { loadComment: loadQingniao }
+        : window.loadOtherComment = loadQingniao
+      return
+    }
+
+    if ('!{use[0]}'.toLowerCase() === 'qingniao' || !!{lazyload}) {
+      if (!{lazyload}) btf.loadComment(document.getElementById('qingniao-wrap'), loadQingniao)
+      else loadQingniao()
+    } else {
+      window.loadOtherComment = loadQingniao
+    }
+  })()

@@ -1,0 +1,32 @@
+name = "qingniao-comments"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "qingniao-comments"
+database_id = "your-d1-database-id-here"
+
+# Cloudflare KV Namespace Binding (For edge cache & session tokens)
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id-here"
+
+# Environment Variables
+[vars]
+# Allowed CORS origins, e.g. "https://yourblog.com" or "*"
+CORS_ORIGIN = "*"
+
+# Site Information (Used in notification emails)
+SITE_NAME = "我的博客"
+SITE_URL = "https://yourblog.com"
+ADMIN_URL = "https://yourblog.com/comment-admin/"
+ADMIN_EMAIL = "admin@example.com"
+SENDER_EMAIL = "青鸟评论通知 <noreply@yourblog.com>"
+
+# Cloudflare Secret variables (Configure via: wrangler secret put <KEY>):
+# - RESEND_API_KEY: Resend API Key for sending email notifications
+# - CAPTCHA_SECRET: Secret salt string for math captcha signing
+# - ADMIN_INIT_PASSWORD: Optional custom token for initial admin account setup

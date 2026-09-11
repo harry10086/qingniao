@@ -1,0 +1,31 @@
+{
+  "name": "qingniao-server",
+  "version": "1.0.0",
+  "description": "A lightweight, elegant, and secure self-hosted comment system backend powered by Cloudflare Workers, D1, and KV.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute qingniao-comments --file=src/schema.sql",
+    "db:init:remote": "wrangler d1 execute qingniao-comments --file=src/schema.sql --remote"
+  },
+  "keywords": [
+    "qingniao",
+    "comment-system",
+    "cloudflare-workers",
+    "cloudflare-d1",
+    "cloudflare-kv",
+    "serverless",
+    "hexo-comment"
+  ],
+  "author": "Harry",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "itty-router": "^5.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

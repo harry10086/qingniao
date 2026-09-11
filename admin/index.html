@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qingniao (青鸟) 评论管理后台</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --bg-card: #ffffff;
+      --bg-hover: #f0f2f5;
+      --text: #333333;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border: #e8e8e8;
+      --border-light: #f0f0f0;
+      --primary: #49b1f5;
+      --primary-hover: #3a9fe4;
+      --primary-light: rgba(73, 177, 245, 0.1);
+      --success: #52c41a;
+      --error: #ff4d4f;
+      --warn: #faad14;
+      --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.1);
+      --radius: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .admin-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    .admin-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .admin-header .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font);
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: #52c41a; color: white; }
+    .btn-success:hover { background: #389e0d; }
+    .btn-reject { background: #ff7a45; color: white; }
+    .btn-reject:hover { background: #e8591c; }
+    .btn-danger { background: #ff7875; color: white; }
+    .btn-danger:hover { background: #ff4d4f; }
+    .btn-pin { background: #faad14; color: white; }
+    .btn-pin:hover { background: #d48806; }
+    .btn-pinned { background: #722ed1; color: white; }
+    .btn-pinned:hover { background: #531dab; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* Login */
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      padding: 32px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .login-container h2 {
+      text-align: center;
+      margin-bottom: 24px;
+      color: var(--primary);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-hover);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+
+    /* Main Content */
+    .admin-main {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 24px;
+    }
+
+    /* Toolbar */
+    .admin-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      background: var(--bg-card);
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .admin-toolbar select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-hover);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .admin-toolbar .spacer { flex: 1; }
+
+    /* Stats */
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      flex: 1;
+      padding: 18px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .stat-card .stat-num {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-card .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Comment List */
+    .comment-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .comment-item:hover {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .comment-item.selected {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .comment-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .comment-header input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .comment-meta {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .comment-meta .name { font-weight: 600; color: var(--text); }
+    .comment-meta .email { color: var(--text-secondary); font-size: 12px; }
+    .comment-meta .path { color: var(--primary); font-size: 12px; font-weight: 500; }
+    .comment-meta .time { color: var(--text-muted); font-size: 12px; }
+
+    .comment-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .status-pending { background: rgba(250, 173, 20, 0.15); color: var(--warn); }
+    .status-approved { background: rgba(82, 196, 26, 0.15); color: var(--success); }
+    .status-rejected { background: rgba(255, 77, 79, 0.15); color: var(--error); }
+
+    .comment-body {
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 10px 0;
+      padding: 10px 14px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-light);
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+    }
+
+    .comment-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    /* Pagination (Overriding Hexo Butterfly global .layout .pagination > *) */
+    #admin-dashboard #pagination {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 6px !important;
+      margin-top: 24px !important;
+      flex-wrap: wrap !important;
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    #admin-dashboard #pagination > * {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: auto !important;
+      height: 34px !important;
+      min-width: 34px !important;
+      line-height: 1.2 !important;
+      margin: 0 !important;
+      padding: 5px 12px !important;
+      border: 1px solid var(--border) !important;
+      background: var(--bg-card) !important;
+      color: var(--text-secondary) !important;
+      border-radius: var(--radius) !important;
+      cursor: pointer !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      transition: all 0.2s !important;
+      box-sizing: border-box !important;
+    }
+
+    #admin-dashboard #pagination > button.active {
+      background: var(--primary) !important;
+      color: white !important;
+      border-color: var(--primary) !important;
+    }
+
+    #admin-dashboard #pagination > button:disabled {
+      opacity: 0.45 !important;
+      cursor: not-allowed !important;
+      border-color: var(--border-light) !important;
+      background: var(--bg-hover) !important;
+    }
+
+    #admin-dashboard #pagination > button:hover:not(.active):not(:disabled) {
+      border-color: var(--primary) !important;
+      color: var(--primary) !important;
+      background: var(--primary-light) !important;
+    }
+
+    #admin-dashboard #pagination > span.page-ellipsis {
+      border: none !important;
+      background: transparent !important;
+      cursor: default !important;
+      padding: 0 4px !important;
+      min-width: auto !important;
+      color: var(--text-muted) !important;
+    }
+
+    #admin-dashboard #pagination > span.page-info {
+      border: none !important;
+      background: transparent !important;
+      cursor: default !important;
+      margin-left: 8px !important;
+      min-width: auto !important;
+      color: var(--text-secondary) !important;
+      font-size: 13px !important;
+    }
+
+    /* Import/Export Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(2px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-hover);
+    }
+
+    .modal h3 {
+      margin-bottom: 16px;
+      color: var(--primary);
+    }
+
+    .modal textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+      resize: vertical;
+      outline: none;
+    }
+
+    .modal textarea:focus {
+      border-color: var(--primary);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      z-index: 300;
+      animation: slideIn 0.3s ease;
+      box-shadow: var(--shadow-hover);
+    }
+
+    .toast-success { background: var(--success); color: white; }
+    .toast-error { background: var(--error); color: white; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .admin-main { padding: 0 12px; }
+      .stats-bar { flex-wrap: wrap; }
+      .stat-card { min-width: calc(50% - 8px); }
+      .comment-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .admin-toolbar { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <div class="login-container">
+    <h2>🕊️ Qingniao 评论管理登录</h2>
+    <div class="form-group">
+      <label>后端 API 地址</label>
+      <input type="text" id="login-api" class="form-input" placeholder="https://your-worker.yourname.workers.dev" value="">
+    </div>
+    <div class="form-group">
+      <label>用户名</label>
+      <input type="text" id="login-username" class="form-input" placeholder="admin">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="login-password" class="form-input" placeholder="密码">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()">登录</button>
+    <p id="login-error" style="color:var(--error);font-size:13px;text-align:center;margin-top:12px"></p>
+  </div>
+</div>
+
+<!-- Admin Dashboard -->
+<div id="admin-dashboard" style="display:none">
+  <header class="admin-header">
+    <h1>🕊️ Qingniao 评论管理</h1>
+    <div class="user-info">
+      <span id="admin-username"></span>
+      <button class="btn btn-outline btn-sm" onclick="doLogout()">退出</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar"></div>
+
+    <!-- Toolbar -->
+    <div class="admin-toolbar">
+      <select id="filter-status" onchange="currentPage=1;loadComments()">
+        <option value="pending">待审核</option>
+        <option value="approved">已通过</option>
+        <option value="rejected">已拒绝</option>
+        <option value="all">全部</option>
+      </select>
+
+      <span style="font-size:13px;color:var(--text-secondary);margin-left:4px">每页:</span>
+      <select id="filter-limit" onchange="currentPage=1;loadComments()">
+        <option value="20" selected>20 条</option>
+        <option value="30">30 条</option>
+        <option value="40">40 条</option>
+        <option value="50">50 条</option>
+        <option value="100">100 条</option>
+      </select>
+
+      <input type="text" class="form-input" id="filter-path" placeholder="按页面路径/标题关键词筛选..." style="max-width:260px"
+        onkeydown="if(event.key==='Enter'){currentPage=1;loadComments();}">
+
+      <button class="btn btn-outline btn-sm" onclick="currentPage=1;loadComments()">筛选</button>
+
+      <div class="spacer"></div>
+
+      <button class="btn btn-outline btn-sm" onclick="selectAll()">全选</button>
+      <button class="btn btn-outline btn-sm" onclick="invertSelection()">反选</button>
+      <button class="btn btn-success btn-sm" onclick="batchAction('approve')">✓ 批量通过</button>
+      <button class="btn btn-reject btn-sm" onclick="batchAction('reject')">🚫 批量拒绝</button>
+      <button class="btn btn-danger btn-sm" onclick="batchAction('delete')">🗑 批量删除</button>
+
+      <div class="spacer"></div>
+
+      <button class="btn btn-outline btn-sm" onclick="showExportModal()">导出</button>
+      <button class="btn btn-outline btn-sm" onclick="showImportModal()">导入</button>
+    </div>
+
+    <!-- Comment List -->
+    <div id="comment-list"></div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="pagination"></div>
+  </main>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal">
+    <h3>📥 导入评论</h3>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+      支持 MianaoComment 原生格式和 Twikoo 格式（JSON）。粘贴 JSON 数据：
+    </p>
+    <textarea id="import-data" placeholder='粘贴 JSON 数据...'></textarea>
+    <div style="margin-top:8px">
+      <label style="font-size:13px;color:var(--text-secondary)">
+        <input type="checkbox" id="import-twikoo"> 标记为 Twikoo 格式
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('import-modal')">取消</button>
+      <button class="btn btn-primary" onclick="doImport()">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <h3>📤 导出评论</h3>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">选择导出格式：</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="doExport('json')">导出 JSON</button>
+      <button class="btn btn-outline" onclick="doExport('csv')">导出 CSV</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('export-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Configuration
+  const API_URL = (() => {
+    const saved = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api');
+    if (saved) return saved;
+    return window.location.origin.includes('localhost') ? 'http://localhost:8787' : window.location.origin;
+  })()
+
+  let token = localStorage.getItem('mc-admin-token') || ''
+  let currentPage = 1
+
+  // Auth
+  async function doLogin() {
+    const apiInput = document.getElementById('login-api');
+    let customApi = apiInput ? apiInput.value.trim().replace(/\/+$/, '') : '';
+    if (customApi) {
+      localStorage.setItem('qn-admin-api', customApi);
+    }
+    const currentApi = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || API_URL;
+    const username = document.getElementById('login-username').value.trim()
+    const password = document.getElementById('login-password').value
+    const errEl = document.getElementById('login-error')
+    errEl.textContent = ''
+
+    if (!username || !password) {
+      errEl.textContent = '请输入用户名和密码'
+      return
+    }
+
+    try {
+      const res = await fetch(`${currentApi}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        token = data.token
+        localStorage.setItem('mc-admin-token', token)
+        showDashboard(data.username)
+      } else {
+        errEl.textContent = data.error || '登录失败'
+      }
+    } catch (err) {
+      errEl.textContent = '网络错误，请检查 API 地址'
+    }
+  }
+
+  async function doLogout() {
+    try {
+      await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    } catch (e) {}
+    token = ''
+    localStorage.removeItem('mc-admin-token')
+    location.reload()
+  }
+
+  async function checkSession() {
+    if (!token) return
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/check`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.authenticated) {
+        showDashboard(data.username)
+      } else {
+        localStorage.removeItem('mc-admin-token')
+      }
+    } catch (e) {}
+  }
+
+  function showDashboard(username) {
+    document.getElementById('login-screen').style.display = 'none'
+    document.getElementById('admin-dashboard').style.display = 'block'
+    document.getElementById('admin-username').textContent = `👤 ${username}`
+    loadStats()
+    loadComments()
+  }
+
+  // Stats
+  async function loadStats() {
+    const bar = document.getElementById('stats-bar')
+    try {
+      const statuses = ['pending', 'approved', 'rejected']
+      const results = await Promise.all(statuses.map(s =>
+        fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments?status=${s}&limit=1`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(r => r.json())
+      ))
+
+      bar.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-num">${results[0].pagination?.total || 0}</div>
+          <div class="stat-label">待审核</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${results[1].pagination?.total || 0}</div>
+          <div class="stat-label">已通过</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${results[2].pagination?.total || 0}</div>
+          <div class="stat-label">已拒绝</div>
+        </div>
+      `
+    } catch (err) {
+      bar.innerHTML = '<div class="stat-card"><div class="stat-label">加载统计失败</div></div>'
+    }
+  }
+
+  function formatPathToTitle(path) {
+    if (!path || path === '/') return '首页评论'
+    let clean = path.replace(/^\/+|\/+$/g, '')
+    if (!clean) return '首页评论'
+    try { clean = decodeURIComponent(clean) } catch (e) {}
+    // If slug format, convert words
+    return clean.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
+
+  // Load Comments
+  async function loadComments() {
+    const status = document.getElementById('filter-status').value
+    const path = document.getElementById('filter-path').value.trim()
+    const limitEl = document.getElementById('filter-limit')
+    const limit = limitEl ? limitEl.value : 30
+    const list = document.getElementById('comment-list')
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">加载中...</div>'
+
+    let url = `${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments?status=${status}&page=${currentPage}&limit=${limit}`
+    if (path) url += `&path=${encodeURIComponent(path)}`
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+
+      if (!data.comments || data.comments.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">暂无评论</div>'
+        document.getElementById('pagination').innerHTML = ''
+        return
+      }
+
+      list.innerHTML = data.comments.map(c => {
+        let userSiteLink = ''
+        if (c.website) {
+          let siteUrl = c.website.trim()
+          if (!/^https?:\/\//i.test(siteUrl) && !/^\/\//.test(siteUrl)) {
+            siteUrl = 'https://' + siteUrl
+          }
+          userSiteLink = `<a href="${escapeHtml(siteUrl)}" target="_blank" rel="nofollow noopener" style="color:#13c2c2;font-weight:500;font-size:12px">🌐 个人网站</a>`
+        }
+
+        const articlePath = c.page_path || '/'
+        const articleUrl = `https://mianao.info${articlePath.startsWith('/') ? '' : '/'}${articlePath}`
+        const displayTitle = (c.page_title && c.page_title.trim()) ? c.page_title : formatPathToTitle(c.page_path)
+        const articleLink = `<a href="${escapeHtml(articleUrl)}" target="_blank" style="color:var(--primary);font-weight:500;font-size:12px" title="${escapeHtml(articleUrl)}">📄 ${escapeHtml(displayTitle)}</a>`
+
+        return `
+        <div class="comment-item" data-id="${c.id}">
+          <div class="comment-header">
+            <input type="checkbox" class="comment-check" value="${c.id}">
+            <div class="comment-meta">
+              <span class="name">${escapeHtml(c.username)}</span>
+              <span class="email">${escapeHtml(c.email)}</span>
+              ${userSiteLink}
+              ${articleLink}
+              <span class="time">${new Date(c.created_at.includes('T') ? c.created_at : c.created_at + 'Z').toLocaleString('zh-CN')}</span>
+              <span class="comment-status status-${c.status}">${c.status === 'pending' ? '待审' : c.status === 'approved' ? '通过' : '拒绝'}</span>
+              ${c.is_pinned ? '<span style="color:#faad14;font-size:12px;font-weight:600">📌 置顶</span>' : ''}
+              ${c.parent_id ? `<span style="color:var(--text-muted);font-size:12px">↩ 回复 #${c.parent_id}</span>` : ''}
+            </div>
+          </div>
+          <div class="comment-body">${escapeHtml(c.content)}</div>
+          <div class="comment-actions">
+            ${c.status !== 'approved' ? `<button class="btn btn-success btn-sm" onclick="updateComment(${c.id},'approved')">✓ 通过</button>` : ''}
+            ${c.status !== 'rejected' ? `<button class="btn btn-reject btn-sm" onclick="updateComment(${c.id},'rejected')">🚫 拒绝</button>` : ''}
+            <button class="btn btn-outline btn-sm" onclick="toggleAdminReplyBox(${c.id})">💬 回复</button>
+            <button class="btn btn-sm ${c.is_pinned ? 'btn-pinned' : 'btn-pin'}" onclick="togglePin(${c.id},${c.is_pinned ? 0 : 1})">${c.is_pinned ? '📌 取消置顶' : '📌 置顶'}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteComment(${c.id})">🗑 删除</button>
+          </div>
+          <div id="reply-box-${c.id}" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+            <div style="display:flex;gap:10px;margin-bottom:8px">
+              <input type="text" id="reply-name-${c.id}" class="form-input" value="博主" placeholder="回复姓名" style="max-width:130px">
+              <input type="email" id="reply-email-${c.id}" class="form-input" value="harry@mianao.info" placeholder="博主邮箱" style="max-width:210px">
+            </div>
+            <textarea id="reply-content-${c.id}" class="form-input" rows="3" placeholder="写下对 ${escapeHtml(c.username)} 的回复..." style="width:100%;margin-bottom:8px;resize:vertical"></textarea>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-outline btn-sm" onclick="toggleAdminReplyBox(${c.id})">取消</button>
+              <button class="btn btn-primary btn-sm" onclick="sendAdminReply(${c.id})">发送回复</button>
+            </div>
+          </div>
+        </div>
+      `}).join('')
+
+      renderPagination(data.pagination)
+    } catch (err) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--error)">加载失败</div>'
+    }
+  }
+
+  function renderPagination(p) {
+    const el = document.getElementById('pagination')
+    if (!p || !p.totalPages || p.totalPages <= 0) { el.innerHTML = ''; return }
+
+    const page = p.page
+    const totalPages = p.totalPages
+    const total = p.total || 0
+
+    let html = []
+
+    // First & Prev
+    html.push(`<button ${page <= 1 ? 'disabled' : ''} onclick="goToPage(1)">首页</button>`)
+    html.push(`<button ${page <= 1 ? 'disabled' : ''} onclick="goToPage(${page - 1})">上一页</button>`)
+
+    // Page Numbers with Smart Ellipsis
+    const maxVisible = 5
+    let startPage = Math.max(1, page - 2)
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1)
+
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1)
+    }
+
+    if (startPage > 1) {
+      html.push(`<button onclick="goToPage(1)">1</button>`)
+      if (startPage > 2) {
+        html.push(`<span class="page-ellipsis">...</span>`)
+      }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      html.push(`<button class="${i === page ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`)
+    }
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        html.push(`<span class="page-ellipsis">...</span>`)
+      }
+      html.push(`<button onclick="goToPage(${totalPages})">${totalPages}</button>`)
+    }
+
+    // Next & Last
+    html.push(`<button ${page >= totalPages ? 'disabled' : ''} onclick="goToPage(${page + 1})">下一页</button>`)
+    html.push(`<button ${page >= totalPages ? 'disabled' : ''} onclick="goToPage(${totalPages})">末页</button>`)
+
+    // Page info summary
+    html.push(`<span class="page-info">共 ${total} 条评论，第 ${page} / ${totalPages} 页</span>`)
+
+    el.innerHTML = html.join('')
+  }
+
+  function goToPage(p) {
+    currentPage = p
+    loadComments()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Actions
+  function toggleAdminReplyBox(id) {
+    const box = document.getElementById(`reply-box-${id}`)
+    if (box) {
+      const isHidden = box.style.display === 'none'
+      box.style.display = isHidden ? 'block' : 'none'
+      if (isHidden) {
+        const txt = document.getElementById(`reply-content-${id}`)
+        if (txt) txt.focus()
+      }
+    }
+  }
+
+  async function sendAdminReply(parentId) {
+    const nameInput = document.getElementById(`reply-name-${parentId}`)
+    const emailInput = document.getElementById(`reply-email-${parentId}`)
+    const contentInput = document.getElementById(`reply-content-${parentId}`)
+
+    const username = nameInput ? nameInput.value.trim() : '博主'
+    const email = emailInput ? emailInput.value.trim() : 'harry@mianao.info'
+    const content = contentInput ? contentInput.value.trim() : ''
+
+    if (!content) {
+      showToast('请输入回复内容', 'error')
+      return
+    }
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ parentId, content, username, email })
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        showToast('回复已成功发送', 'success')
+        loadComments()
+        loadStats()
+      } else {
+        showToast(data.error || '回复失败', 'error')
+      }
+    } catch (err) {
+      showToast('网络错误，回复失败', 'error')
+    }
+  }
+
+  async function updateComment(id, status) {
+    try {
+      await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      })
+      showToast(`评论已${status === 'approved' ? '通过' : '拒绝'}`, 'success')
+      loadComments()
+      loadStats()
+    } catch (err) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  async function togglePin(id, pin) {
+    try {
+      await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_pinned: pin })
+      })
+      showToast(pin ? '已置顶' : '已取消置顶', 'success')
+      loadComments()
+    } catch (err) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  async function deleteComment(id) {
+    if (!confirm('确认删除此评论？子评论也会被删除。')) return
+    await batchAction('delete', [id])
+  }
+
+  function selectAll() {
+    const checks = document.querySelectorAll('.comment-check')
+    const allChecked = [...checks].every(c => c.checked)
+    checks.forEach(c => {
+      c.checked = !allChecked
+      c.closest('.comment-item').classList.toggle('selected', c.checked)
+    })
+  }
+
+  function invertSelection() {
+    const checks = document.querySelectorAll('.comment-check')
+    checks.forEach(c => {
+      c.checked = !c.checked
+      c.closest('.comment-item').classList.toggle('selected', c.checked)
+    })
+  }
+
+  async function batchAction(action, ids) {
+    if (!ids) {
+      ids = [...document.querySelectorAll('.comment-check:checked')].map(c => parseInt(c.value))
+    }
+    if (ids.length === 0) {
+      showToast('请先选择评论', 'error')
+      return
+    }
+
+    if (action === 'delete' && !confirm(`确认删除 ${ids.length} 条评论？`)) return
+
+    try {
+      await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/comments/batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ids, action })
+      })
+      showToast(`已${action === 'approve' ? '通过' : action === 'reject' ? '拒绝' : '删除'} ${ids.length} 条`, 'success')
+      loadComments()
+      loadStats()
+    } catch (err) {
+      showToast('操作失败', 'error')
+    }
+  }
+
+  // Import/Export
+  function showImportModal() {
+    document.getElementById('import-modal').classList.add('active')
+  }
+
+  function showExportModal() {
+    document.getElementById('export-modal').classList.add('active')
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active')
+  }
+
+  async function doImport() {
+    const raw = document.getElementById('import-data').value.trim()
+    const isTwikoo = document.getElementById('import-twikoo').checked
+
+    if (!raw) {
+      showToast('请粘贴 JSON 数据', 'error')
+      return
+    }
+
+    let body
+    try {
+      body = JSON.parse(raw)
+    } catch (e) {
+      showToast('JSON 格式错误', 'error')
+      return
+    }
+
+    if (isTwikoo) {
+      body = { format: 'twikoo', comments: Array.isArray(body) ? body : (body.data || body.comments || []) }
+    } else if (Array.isArray(body)) {
+      body = { comments: body }
+    }
+
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        showToast(data.message, 'success')
+        closeModal('import-modal')
+        loadComments()
+        loadStats()
+      } else {
+        showToast(data.error || '导入失败', 'error')
+      }
+    } catch (err) {
+      showToast('导入失败', 'error')
+    }
+  }
+
+  async function doExport(format) {
+    try {
+      const res = await fetch(`${(localStorage.getItem("qn-admin-api") || localStorage.getItem("mc-admin-api") || API_URL)}/api/admin/export?format=${format}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `comments_export_${new Date().toISOString().slice(0,10)}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+
+      showToast('导出成功', 'success')
+      closeModal('export-modal')
+    } catch (err) {
+      showToast('导出失败', 'error')
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return ''
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+
+  function showToast(msg, type) {
+    const toast = document.createElement('div')
+    toast.className = `toast toast-${type}`
+    toast.textContent = msg
+    document.body.appendChild(toast)
+    setTimeout(() => toast.remove(), 3000)
+  }
+
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin()
+  })
+
+  document.addEventListener('change', e => {
+    if (e.target.classList.contains('comment-check')) {
+      e.target.closest('.comment-item').classList.toggle('selected', e.target.checked)
+    }
+  })
+
+  checkSession()
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const apiInput = document.getElementById('login-api');
+  if (apiInput) {
+    apiInput.value = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || (window.location.origin.includes('localhost') ? 'http://localhost:8787' : '');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Qingniao (青鸟) 评论系统配置示例 (添加到 _config.butterfly.yml)
+comments:
+  use:
+    - Qingniao
+  lazyload: true
+  count: true
+
+qingniao:
+  apiUrl: https://comment.yourdomain.com # 你的 Cloudflare Workers API 地址
+  option:
+    placeholder: 蓬山此去无多路，青鸟殷勤为探看...
+    maxLength: 500
+    pageSize: 20
+    defaultSort: newest # newest | oldest | most_upvoted
+    adminBadge: 博主
+    masterEmail: admin@yourdomain.com
