@@ -1,3 +1,6 @@
+---
+title: 评论管理
+---
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -650,7 +653,7 @@
   const API_URL = (() => {
     const saved = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api');
     if (saved) return saved;
-    return window.location.origin.includes('localhost') ? 'http://localhost:8787' : window.location.origin;
+    return 'https://comment.mianao.info';
   })()
 
   let token = localStorage.getItem('mc-admin-token') || ''
@@ -1280,7 +1283,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const apiInput = document.getElementById('login-api');
   if (apiInput) {
-    apiInput.value = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || (window.location.origin.includes('localhost') ? 'http://localhost:8787' : '');
+    apiInput.value = localStorage.getItem('qn-admin-api') || localStorage.getItem('mc-admin-api') || 'https://comment.mianao.info';
   }
 });
 </script>

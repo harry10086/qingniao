@@ -1,3 +1,6 @@
+- const qnConfig = theme.qingniao || {}
+- const qnApiUrl = qnConfig.apiUrl || ''
+
 script.
   (() => {
     const getCommentUrl = () => {
@@ -13,7 +16,8 @@ script.
       const urls = getCommentUrl()
       if (!urls.length) return
 
-      const apiUrl = '!{theme.qingniao || theme.butubuk || theme.qingniao.apiUrl}'
+      const apiUrl = '!{qnApiUrl}'
+      if (!apiUrl) return
       fetch(apiUrl + '/api/count?paths=' + encodeURIComponent(urls.join(',')))
         .then(res => res.json())
         .then(data => {

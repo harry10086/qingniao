@@ -27,7 +27,6 @@ themes/butterfly/layout/includes/third-party/
 ```pug
 case theme.comments.use[0]
   when 'Qingniao'
-  when 'ButuBuk'
   when 'MianaoComment'
     include ./qingniao.pug
 ```
@@ -37,7 +36,6 @@ case theme.comments.use[0]
 ```pug
 case theme.comments.use[0]
   when 'Qingniao'
-  when 'ButuBuk'
   when 'MianaoComment'
     include ./qingniao.pug
 ```
@@ -46,7 +44,6 @@ case theme.comments.use[0]
 ```pug
 case theme.comments.use[0]
   when 'Qingniao'
-  when 'ButuBuk'
   when 'MianaoComment'
     include ./qingniao.pug
 ```
@@ -55,7 +52,6 @@ case theme.comments.use[0]
 ```pug
 case theme.comments.use[0]
   when 'Qingniao'
-  when 'ButuBuk'
   when 'MianaoComment'
     include ./qingniao.pug
 ```

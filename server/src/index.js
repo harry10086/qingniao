@@ -1,6 +1,6 @@
 /**
- * Qingniao (青鸟) Comment System - Cloudflare Workers Backend
- * Main entry point: routing, CORS handling, and Edge Cache optimization
+ * Qingniao (青鸟) Workers Backend
+ * Cloudflare Workers + D1 Database
  */
 import { Router } from 'itty-router';
 import { getComments, createComment, getCaptcha, getCommentCount, getRecentComments } from './routes/comments.js';
@@ -14,19 +14,16 @@ import {
 const router = Router();
 
 /**
- * Helper to generate CORS headers dynamically
+ * CORS headers helper
  */
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin');
-  const configuredOrigin = env.CORS_ORIGIN || '*';
-  let allowedOrigin = configuredOrigin;
+  let allowedOrigin = env.CORS_ORIGIN || 'https://mianao.info';
 
-  if (configuredOrigin === '*') {
-    allowedOrigin = origin || '*';
-  } else if (origin) {
+  if (origin) {
     const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
-    const origins = configuredOrigin.split(',').map(s => s.trim());
-    if (isLocalhost || origins.includes(origin)) {
+    const isProd = origin === 'https://mianao.info' || origin === 'https://www.mianao.info';
+    if (isLocalhost || isProd) {
       allowedOrigin = origin;
     }
   }
@@ -40,9 +37,6 @@ function corsHeaders(request, env) {
   };
 }
 
-/**
- * Wrap Response with CORS headers and Edge Cache headers
- */
 function withCors(request, response, env) {
   const newHeaders = new Headers(response.headers);
   const headers = corsHeaders(request, env);
@@ -54,9 +48,10 @@ function withCors(request, response, env) {
   if (request.method === 'GET' && response.status === 200) {
     const url = new URL(request.url);
     const path = url.pathname;
-    if (path === '/api/comments' || path === '/api/recent' || path === '/api/count') {
+    if (path === '/api/comments' || path === '/api/recent' || path === '/api/comments/count') {
+      // max-age=0: Browser always validates with Cloudflare Edge
       // s-maxage=120: Cloudflare Edge caches for 2 minutes (serves in 10-30ms)
-      // stale-while-revalidate=300: Revalidate in background
+      // stale-while-revalidate=300: Revalidate asynchronously in background
       newHeaders.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=300');
       newHeaders.set('X-Cache-Status', 'Edge-Optimized');
     }
@@ -77,27 +72,27 @@ router.options('*', (request, env) => {
   });
 });
 
-// ============ Public APIs ============
+// ============ Public API ============
 
-// Get a new math captcha challenge
+// Get a new captcha challenge
 router.get('/api/captcha', async (request, env) => {
   const response = await getCaptcha(request, env);
   return withCors(request, response, env);
 });
 
-// Get comments for a specific page path
+// Get comments for a page
 router.get('/api/comments', async (request, env) => {
   const response = await getComments(request, env);
   return withCors(request, response, env);
 });
 
-// Get batch comment counts for multiple page paths
+// Get comment counts for multiple pages (batch)
 router.get('/api/count', async (request, env) => {
   const response = await getCommentCount(request, env);
   return withCors(request, response, env);
 });
 
-// Get recent comments across the whole site
+// Get recent comments across all pages
 router.get('/api/recent', async (request, env) => {
   const response = await getRecentComments(request, env);
   return withCors(request, response, env);
@@ -109,21 +104,21 @@ router.post('/api/comments', async (request, env, ctx) => {
   return withCors(request, response, env);
 });
 
-// Vote on a comment (upvote / downvote)
+// Vote on a comment
 router.post('/api/comments/:id/vote', async (request, env) => {
   const response = await voteComment(request, env);
   return withCors(request, response, env);
 });
 
-// Get user vote status on a comment
+// Get vote status
 router.get('/api/comments/:id/vote', async (request, env) => {
   const response = await getVoteStatus(request, env);
   return withCors(request, response, env);
 });
 
-// ============ Admin APIs ============
+// ============ Admin API ============
 
-// Admin initialization (only callable when admins table is empty)
+// Admin initialization (only works when no admin exists)
 router.post('/api/admin/init', async (request, env) => {
   const response = await initAdmin(request, env);
   return withCors(request, response, env);
@@ -141,19 +136,19 @@ router.post('/api/admin/logout', async (request, env) => {
   return withCors(request, response, env);
 });
 
-// Admin session validation
+// Admin session check
 router.get('/api/admin/check', async (request, env) => {
   const response = await checkAdmin(request, env);
   return withCors(request, response, env);
 });
 
-// Get comments for admin review (with filters & search)
+// Get comments for admin review
 router.get('/api/admin/comments', async (request, env) => {
   const response = await getAdminComments(request, env);
   return withCors(request, response, env);
 });
 
-// Update a single comment (approve, reject, pin, unpin, delete)
+// Update a single comment (status, pin)
 router.put('/api/admin/comments/:id', async (request, env) => {
   const response = await updateComment(request, env);
   return withCors(request, response, env);
@@ -165,38 +160,40 @@ router.post('/api/admin/comments/batch', async (request, env) => {
   return withCors(request, response, env);
 });
 
-// Export comments as JSON or CSV
+// Export comments
 router.get('/api/admin/export', async (request, env) => {
   const response = await exportComments(request, env);
   return withCors(request, response, env);
 });
 
-// Import comments (supports Qingniao native and Twikoo JSON format)
+// Import comments
 router.post('/api/admin/import', async (request, env) => {
   const response = await importComments(request, env);
   return withCors(request, response, env);
 });
 
-// Direct admin reply from dashboard
+// Direct admin reply to comment
 router.post('/api/admin/comments/reply', async (request, env) => {
   const response = await adminReplyComment(request, env);
   return withCors(request, response, env);
 });
 
 // ============ Fallback ============
+
 router.all('*', () => {
-  return Response.json({ error: 'Endpoint Not Found' }, { status: 404 });
+  return Response.json({ error: 'Not Found' }, { status: 404 });
 });
 
+// Worker entry point
 export default {
   async fetch(request, env, ctx) {
     try {
       return await router.fetch(request, env, ctx);
     } catch (err) {
-      console.error('Worker runtime error:', err);
+      console.error('Worker error:', err);
       return withCors(
         request,
-        Response.json({ error: 'Internal Server Error' }, { status: 500 }),
+        Response.json({ error: '服务器内部错误' }, { status: 500 }),
         env
       );
     }

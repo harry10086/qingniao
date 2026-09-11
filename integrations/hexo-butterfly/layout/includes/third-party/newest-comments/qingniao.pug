@@ -1,3 +1,6 @@
+- const qnConfig = theme.qingniao || {}
+- const qnApiUrl = qnConfig.apiUrl || ''
+
 != partial("includes/third-party/newest-comments/common.pug", {}, { cache: true })
 
 script.
@@ -7,7 +10,8 @@ script.
 
     const getComment = ele => {
       const loadAndFetch = () => {
-        const apiUrl = '!{theme.qingniao || theme.butubuk || theme.qingniao.apiUrl}'
+        const apiUrl = '!{qnApiUrl}'
+        if (!apiUrl) return
         fetch(apiUrl + '/api/recent?limit=!{newestCommentsLimit}')
           .then(res => res.json())
           .then(data => {
@@ -18,8 +22,8 @@ script.
                 'content': changeContent(e.content || ''),
                 'avatar': avatarUrl,
                 'nick': e.username || '匿名',
-                'url': e.page_path + '#mc-comment-' + e.id,
-                'date': new Date(e.created_at.includes('T') ? e.created_at : e.created_at + 'Z').toISOString()
+                'url': e.page_path + '#qn-comment-' + e.id,
+                'date': (e.created_at ? new Date(e.created_at.includes('T') ? e.created_at : e.created_at + 'Z').toISOString() : new Date().toISOString())
               }
             })
 

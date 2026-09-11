@@ -1,6 +1,6 @@
 /**
- * Comments API Routes
- * Handles CRUD operations, tree construction, math captcha, counts, and recent lists
+ * Comments API routes
+ * Handles CRUD operations for comments on mianao.info
  */
 import { verifyCaptcha } from '../middleware/captcha.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -11,7 +11,7 @@ import { getFromKv, saveToKv, purgeKvCache } from '../utils/kvCache.js';
 
 /**
  * GET /api/comments?path=xxx&page=1&limit=20&sort=newest
- * Get approved comments for a page with nested tree and pagination
+ * Get approved comments for a page with pagination and sorting
  */
 export async function getComments(request, env) {
   const url = new URL(request.url);
@@ -26,7 +26,7 @@ export async function getComments(request, env) {
   const sort = url.searchParams.get('sort') || 'newest'; // newest, oldest, most_upvoted
   const offset = (page - 1) * limit;
 
-  // Try KV Cache first
+  // Try KV Cache first (ultra-fast 10ms response)
   const cacheKey = `kv_comments:${pagePath}:${page}:${limit}:${sort}`;
   const cachedData = await getFromKv(env, cacheKey);
   if (cachedData) {
@@ -74,7 +74,7 @@ export async function getComments(request, env) {
   }
 
   // Build comment tree
-  const adminEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const adminEmail = (env.ADMIN_EMAIL || 'harry@mianao.info').trim().toLowerCase();
   const commentTree = buildCommentTree(comments.results, allReplies, adminEmail);
 
   const resultObj = {
@@ -82,264 +82,201 @@ export async function getComments(request, env) {
     pagination: {
       page,
       limit,
-      total: countResult ? countResult.total : 0,
-      totalPages: Math.ceil((countResult ? countResult.total : 0) / limit),
+      total: countResult.total,
+      totalPages: Math.ceil(countResult.total / limit),
     },
     sort,
   };
 
-  // Cache in KV for 10 minutes
+  // Save to KV in background (expires in 10 mins)
   await saveToKv(env, cacheKey, resultObj, 600);
 
   return Response.json(resultObj);
 }
 
 /**
- * Build nested comment tree from flat lists
+ * Build nested comment tree from flat list
  */
-function buildCommentTree(topLevel, replies, adminEmail = '') {
+function buildCommentTree(topLevel, replies, adminEmail = 'harry@mianao.info') {
   const replyMap = new Map();
 
+  // Group replies by parent_id
   for (const reply of replies) {
     if (!replyMap.has(reply.parent_id)) {
       replyMap.set(reply.parent_id, []);
     }
-    const cleanEmail = (reply.email || '').trim().toLowerCase();
-    const isAuthor = Boolean(adminEmail && cleanEmail === adminEmail);
-
-    replyMap.get(reply.parent_id).push({
-      id: reply.id,
-      parent_id: reply.parent_id,
-      username: reply.username,
-      website: reply.website || '',
-      content: reply.content,
-      is_pinned: reply.is_pinned === 1,
-      is_admin: isAuthor ? 1 : 0,
-      upvotes: reply.upvotes,
-      downvotes: reply.downvotes,
-      email_hash: md5Email(reply.email),
-      created_at: reply.created_at,
-      replies: [],
-    });
+    replyMap.get(reply.parent_id).push(reply);
   }
 
+  // Recursively attach replies
   function attachReplies(comment) {
-    const directReplies = replyMap.get(comment.id) || [];
-    comment.replies = directReplies.map(r => attachReplies(r));
-    return comment;
+    const children = replyMap.get(comment.id) || [];
+    const { email, ...rest } = comment;
+    const is_admin = email && email.trim().toLowerCase() === adminEmail ? 1 : 0;
+    return {
+      ...rest,
+      is_admin,
+      email_hash: email ? md5Email(email) : '',
+      replies: children.map(child => attachReplies(child)),
+    };
   }
 
-  return topLevel.map(comment => {
-    const cleanEmail = (comment.email || '').trim().toLowerCase();
-    const isAuthor = Boolean(adminEmail && cleanEmail === adminEmail);
-
-    const node = {
-      id: comment.id,
-      parent_id: null,
-      username: comment.username,
-      website: comment.website || '',
-      content: comment.content,
-      is_pinned: comment.is_pinned === 1,
-      is_admin: isAuthor ? 1 : 0,
-      upvotes: comment.upvotes,
-      downvotes: comment.downvotes,
-      email_hash: md5Email(comment.email),
-      created_at: comment.created_at,
-      replies: [],
-    };
-    return attachReplies(node);
-  });
+  return topLevel.map(comment => attachReplies(comment));
 }
 
 /**
  * POST /api/comments
- * Post a new comment
+ * Create a new comment
  */
 export async function createComment(request, env, ctx) {
-  // Rate limit check (max 3 comments per 60s per IP)
-  const rateLimitError = await rateLimit(request, env, { maxRequests: 3, windowSeconds: 60 });
-  if (rateLimitError) return rateLimitError;
-
-  // Math captcha verification
+  // Verify Captcha
   const captchaError = await verifyCaptcha(request, env);
   if (captchaError) return captchaError;
+
+  // Rate limit
+  const rateLimitError = await rateLimit(request, env, { maxRequests: 3, windowSeconds: 60 });
+  if (rateLimitError) return rateLimitError;
 
   let body;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: '请求数据格式错误' }, { status: 400 });
+    return Response.json({ error: '请求格式错误' }, { status: 400 });
   }
 
-  const { page_path, page_title, parent_id, username, email, website, content } = body;
+  const { path: pagePath, pageTitle, parentId, username, email, website, content } = body;
 
-  if (!page_path || typeof page_path !== 'string') {
-    return Response.json({ error: '缺少页面路径' }, { status: 400 });
+  // Validate page path
+  if (!pagePath || typeof pagePath !== 'string') {
+    return Response.json({ error: '无效的页面路径' }, { status: 400 });
   }
 
-  // Username validation
-  const userCheck = validateUsername(username);
-  if (!userCheck.valid) {
-    return Response.json({ error: userCheck.reason }, { status: 400 });
+  // Validate comment length
+  if (!content || content.trim().length === 0) {
+    return Response.json({ error: '请输入评论内容' }, { status: 400 });
+  }
+  if (content.trim().length > 500) {
+    return Response.json({ error: '评论内容不能超过500字' }, { status: 400 });
   }
 
-  // Email validation
+  // Validate username
+  const usernameCheck = validateUsername(username);
+  if (!usernameCheck.valid) {
+    return Response.json({ error: usernameCheck.reason }, { status: 400 });
+  }
+
+  // Validate email
   const emailCheck = validateEmail(email);
   if (!emailCheck.valid) {
     return Response.json({ error: emailCheck.reason }, { status: 400 });
   }
 
-  // Content spam check
+  // Validate website (optional)
+  let cleanWebsite = (website || '').trim();
+  if (cleanWebsite.length > 0) {
+    if (cleanWebsite.length > 200) {
+      return Response.json({ error: '网站地址过长' }, { status: 400 });
+    }
+    if (!/^https?:\/\//i.test(cleanWebsite) && !/^\/\//.test(cleanWebsite)) {
+      cleanWebsite = 'https://' + cleanWebsite;
+    }
+  }
+
+  // Check spam
   const spamCheck = checkSpam(content);
   if (spamCheck.isSpam) {
     return Response.json({ error: spamCheck.reason }, { status: 400 });
   }
 
-  // Check parent_id if replying
-  let parentComment = null;
-  if (parent_id) {
-    parentComment = await env.DB.prepare(
-      'SELECT id, email, username, content FROM comments WHERE id = ? AND status = ?'
-    ).bind(parent_id, 'approved').first();
+  // If parentId provided, verify parent exists and belongs to same page
+  if (parentId) {
+    const parent = await env.DB.prepare(
+      'SELECT id, page_path FROM comments WHERE id = ? AND status = ?'
+    ).bind(parseInt(parentId), 'approved').first();
 
-    if (!parentComment) {
-      return Response.json({ error: '回复的评论不存在或未通过审核' }, { status: 404 });
+    if (!parent) {
+      return Response.json({ error: '回复的评论不存在' }, { status: 404 });
+    }
+    if (parent.page_path !== pagePath) {
+      return Response.json({ error: '不能跨页面回复评论' }, { status: 400 });
     }
   }
 
-  // Hash IP & email for privacy and trust tracking
-  const clientIP = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-  const ipHash = await hashIP(clientIP);
-  const emailHash = await hashEmail(email);
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const ipHash = await hashIP(ip);
+  const emailH = await hashEmail(email.trim().toLowerCase());
 
-  // Check if trusted user or admin
-  const adminEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase();
-  const isAdminUser = Boolean(adminEmail && email.trim().toLowerCase() === adminEmail);
+  // Check if this user is trusted (previously approved)
+  const trusted = await env.DB.prepare(
+    'SELECT id FROM trusted_users WHERE email_hash = ?'
+  ).bind(emailH).first();
 
-  let initialStatus = 'pending';
-  if (isAdminUser) {
-    initialStatus = 'approved';
-  } else {
-    const trusted = await env.DB.prepare(
-      'SELECT id FROM trusted_users WHERE email_hash = ?'
-    ).bind(emailHash).first();
-    if (trusted) {
-      initialStatus = 'approved';
-    }
-  }
+  const status = trusted ? 'approved' : 'pending';
+  const cleanTitle = (pageTitle || '').trim();
 
-  // Clean website URL
-  let cleanWebsite = (website || '').trim();
-  if (cleanWebsite && !cleanWebsite.startsWith('http://') && !cleanWebsite.startsWith('https://')) {
-    cleanWebsite = 'https://' + cleanWebsite;
-  }
-
-  // Insert comment
-  const insertResult = await env.DB.prepare(
+  const result = await env.DB.prepare(
     `INSERT INTO comments (page_path, page_title, parent_id, username, email, website, content, status, ip_hash, email_hash)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
-    page_path.trim(),
-    (page_title || '').trim(),
-    parent_id || null,
+    pagePath,
+    cleanTitle,
+    parentId ? parseInt(parentId) : null,
     username.trim(),
     email.trim().toLowerCase(),
     cleanWebsite,
     content.trim(),
-    initialStatus,
+    status,
     ipHash,
-    emailHash
+    emailH
   ).run();
 
-  const commentId = insertResult.meta.last_row_id;
-
+  const commentId = result.meta.last_row_id;
   const newCommentObj = {
     id: commentId,
-    page_path: page_path.trim(),
-    page_title: (page_title || '').trim(),
-    parent_id: parent_id || null,
+    page_path: pagePath,
+    page_title: cleanTitle,
+    parent_id: parentId ? parseInt(parentId) : null,
     username: username.trim(),
     email: email.trim().toLowerCase(),
-    website: cleanWebsite,
     content: content.trim(),
-    status: initialStatus,
+    status
   };
 
-  // Invalidate KV cache
-  if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(purgeKvCache(env, page_path));
+  // Asynchronously trigger email notifications
+  const sendEmails = async () => {
+    await notifyAdminNewComment(env, newCommentObj);
+    if (status === 'approved' && parentId) {
+      const parent = await env.DB.prepare('SELECT id, page_path, page_title, username, email, content FROM comments WHERE id = ?').bind(parseInt(parentId)).first();
+      if (parent) {
+        await notifyUserReply(env, newCommentObj, parent);
+      }
+    }
+  };
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(sendEmails());
   } else {
-    await purgeKvCache(env, page_path);
+    sendEmails().catch(e => console.error('[Email Task Error]', e));
   }
 
-  // Asynchronous email notification
-  if (ctx && ctx.waitUntil) {
-    ctx.waitUntil((async () => {
-      await notifyAdminNewComment(env, newCommentObj);
-      if (parentComment) {
-        await notifyUserReply(env, newCommentObj, parentComment);
-      }
-    })());
-  } else {
-    notifyAdminNewComment(env, newCommentObj).catch(console.error);
-    if (parentComment) {
-      notifyUserReply(env, newCommentObj, parentComment).catch(console.error);
-    }
-  }
+  // Clear KV Cache so new comments/recent comments refresh immediately
+  await purgeKvCache(env, pagePath);
+
+  const message = trusted
+    ? '评论已发布'
+    : '评论已提交，审核通过后将显示';
 
   return Response.json({
     success: true,
-    message: initialStatus === 'approved' ? '评论发表成功' : '评论已提交，博主审核后即可展示',
-    comment: {
-      id: commentId,
-      username: username.trim(),
-      content: content.trim(),
-      status: initialStatus,
-      email_hash: md5Email(email),
-      created_at: new Date().toISOString(),
-    },
+    message,
+    commentId,
+    status,
   }, { status: 201 });
 }
 
 /**
- * GET /api/captcha
- * Generate a lightweight math captcha challenge
- */
-export async function getCaptcha(request, env) {
-  const ops = ['+', '-', '×'];
-  const op = ops[Math.floor(Math.random() * ops.length)];
-  let num1, num2, answer;
-
-  switch (op) {
-    case '+':
-      num1 = Math.floor(Math.random() * 20) + 1;
-      num2 = Math.floor(Math.random() * 20) + 1;
-      answer = num1 + num2;
-      break;
-    case '-':
-      num1 = Math.floor(Math.random() * 20) + 10;
-      num2 = Math.floor(Math.random() * num1) + 1;
-      answer = num1 - num2;
-      break;
-    case '×':
-      num1 = Math.floor(Math.random() * 9) + 1;
-      num2 = Math.floor(Math.random() * 9) + 1;
-      answer = num1 * num2;
-      break;
-  }
-
-  const question = `${num1} ${op} ${num2} = ?`;
-  const expiry = Date.now() + 5 * 60 * 1000; // 5 minutes valid
-  const secret = env.CAPTCHA_SECRET || 'qingniao-captcha-default-secret';
-  const signature = await generateCaptchaSignature(String(answer), String(expiry), secret);
-  const token = `${expiry}.${signature}`;
-
-  return Response.json({ question, token });
-}
-
-/**
- * GET /api/count?paths=/post-1,/post-2
- * Batch get comment counts for multiple paths
+ * GET /api/count?paths=path1,path2,...
+ * Get comment counts for multiple pages (batch)
  */
 export async function getCommentCount(request, env) {
   const url = new URL(request.url);
@@ -349,20 +286,20 @@ export async function getCommentCount(request, env) {
     return Response.json({ error: '缺少 paths 参数' }, { status: 400 });
   }
 
-  const paths = pathsParam.split(',').map(p => p.trim()).filter(Boolean);
+  const paths = pathsParam.split(',').filter(p => p.trim()).slice(0, 50); // max 50 paths
+
   if (paths.length === 0) {
     return Response.json({ counts: {} });
   }
 
   const placeholders = paths.map(() => '?').join(',');
-  const query = `
-    SELECT page_path, COUNT(*) as count
-    FROM comments
-    WHERE page_path IN (${placeholders}) AND status = 'approved'
-    GROUP BY page_path
-  `;
+  const results = await env.DB.prepare(
+    `SELECT page_path, COUNT(*) as count
+     FROM comments
+     WHERE page_path IN (${placeholders}) AND status = 'approved' AND parent_id IS NULL
+     GROUP BY page_path`
+  ).bind(...paths).all();
 
-  const results = await env.DB.prepare(query).bind(...paths).all();
   const counts = {};
   for (const path of paths) {
     counts[path] = 0;
@@ -376,12 +313,13 @@ export async function getCommentCount(request, env) {
 
 /**
  * GET /api/recent?limit=6
- * Get recent approved comments across the entire site
+ * Get recent comments across all pages (for sidebar widget)
  */
 export async function getRecentComments(request, env) {
   const url = new URL(request.url);
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '6'), 20);
 
+  // Try KV Cache first
   const cacheKey = `kv_recent:${limit}`;
   const cachedData = await getFromKv(env, cacheKey);
   if (cachedData) {
@@ -389,26 +327,60 @@ export async function getRecentComments(request, env) {
   }
 
   const results = await env.DB.prepare(
-    `SELECT id, page_path, page_title, username, email, website, content, created_at
+    `SELECT id, page_path, page_title, username, email, content, created_at
      FROM comments
      WHERE status = 'approved'
      ORDER BY created_at DESC
      LIMIT ?`
   ).bind(limit).all();
 
+  // Compute Gravatar-compatible MD5 hash for each comment
   const comments = results.results.map(c => ({
     id: c.id,
     page_path: c.page_path,
     page_title: c.page_title,
     username: c.username,
-    website: c.website,
+    email_hash: c.email ? md5Email(c.email) : '',
     content: c.content,
-    email_hash: md5Email(c.email),
     created_at: c.created_at,
   }));
 
-  const data = { comments };
-  await saveToKv(env, cacheKey, data, 120);
+  const resultObj = { comments };
 
-  return Response.json(data);
+  // Save to KV in background (expires in 10 mins)
+  await saveToKv(env, cacheKey, resultObj, 600);
+
+  return Response.json(resultObj);
+}
+
+/**
+ * GET /api/captcha
+ * Generate a new mathematical captcha challenge
+ */
+export async function getCaptcha(request, env) {
+  // Generate random simple math question
+  const isAddition = Math.random() > 0.5;
+  let num1, num2, answer, question;
+
+  if (isAddition) {
+    num1 = Math.floor(Math.random() * 15) + 1; // 1 to 15
+    num2 = Math.floor(Math.random() * 9) + 1;  // 1 to 9
+    answer = num1 + num2;
+    question = `${num1} + ${num2} = ?`;
+  } else {
+    num1 = Math.floor(Math.random() * 15) + 10; // 10 to 24
+    num2 = Math.floor(Math.random() * 9) + 1;   // 1 to 9
+    answer = num1 - num2;
+    question = `${num1} - ${num2} = ?`;
+  }
+
+  const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+  const secret = env.CAPTCHA_SECRET || 'mianao-captcha-secret-salt-2026';
+  const signature = await generateCaptchaSignature(answer, expiry, secret);
+  const token = `${expiry}.${signature}`;
+
+  return Response.json({
+    question,
+    token
+  });
 }

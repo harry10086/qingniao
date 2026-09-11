@@ -1,8 +1,4 @@
--- =========================================================
--- Qingniao (青鸟) Comment System - D1 Database Schema
--- =========================================================
-
--- Comments Table
+-- Comments table
 CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   page_path TEXT NOT NULL,
@@ -28,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_pinned ON comments(page_path, is_pinned 
 CREATE INDEX IF NOT EXISTS idx_comments_email_hash ON comments(email_hash);
 CREATE INDEX IF NOT EXISTS idx_comments_recent ON comments(status, created_at DESC);
 
--- Votes Table (Prevents duplicate voting via voter fingerprint)
+-- Votes table (prevent duplicate votes)
 CREATE TABLE IF NOT EXISTS votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   comment_id INTEGER NOT NULL,
@@ -40,7 +36,7 @@ CREATE TABLE IF NOT EXISTS votes (
 
 CREATE INDEX IF NOT EXISTS idx_votes_comment ON votes(comment_id);
 
--- Admins Table (Stores admin dashboard accounts)
+-- Admins table
 CREATE TABLE IF NOT EXISTS admins (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
@@ -48,7 +44,7 @@ CREATE TABLE IF NOT EXISTS admins (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Trusted Users Table (Auto-approve subsequent comments after first manual approval)
+-- Trusted users table (auto-approve after first approval)
 CREATE TABLE IF NOT EXISTS trusted_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email_hash TEXT UNIQUE NOT NULL,

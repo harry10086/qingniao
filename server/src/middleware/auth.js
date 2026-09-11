@@ -1,6 +1,6 @@
 /**
  * Admin authentication middleware
- * Validates session token against KV store
+ * Validates session token from Authorization header against KV store
  */
 export async function requireAdmin(request, env) {
   const authHeader = request.headers.get('Authorization');
@@ -13,15 +13,9 @@ export async function requireAdmin(request, env) {
   }
 
   const token = authHeader.substring(7);
-  const KV = env.KV || env.mianaoinfoKV;
-  if (!KV) {
-    return new Response(JSON.stringify({ error: 'KV 命名空间未绑定' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
+  const KV = env.mianaoinfoKV || env.KV;
   const session = await KV.get(`session:${token}`, { type: 'json' });
+
   if (!session) {
     return new Response(JSON.stringify({ error: '登录已过期，请重新登录' }), {
       status: 401,
@@ -29,6 +23,7 @@ export async function requireAdmin(request, env) {
     });
   }
 
+  // Attach admin info to request for downstream use
   request.adminUser = session;
-  return null;
+  return null; // passed
 }

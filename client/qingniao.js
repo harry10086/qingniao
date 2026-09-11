@@ -77,7 +77,7 @@
       this.replyTo = null
 
       if (!this.el) {
-        console.error('MianaoComment: element not found')
+        console.error('Qingniao: element not found')
         return
       }
 
@@ -493,6 +493,7 @@
       const item = document.createElement('div')
       item.className = 'mc-comment' + (comment.is_pinned ? ' mc-pinned' : '')
       item.dataset.id = comment.id
+      item.id = 'qn-comment-' + comment.id
       if (depth > 0) item.classList.add('mc-reply')
       item.style.setProperty('--depth', Math.min(depth, 4))
 
@@ -827,7 +828,7 @@
 
   // ============ Static init method ============
   Qingniao.init = function (options) {
-    return new MianaoComment(options)
+    return new Qingniao(options)
   }
 
   // ============ Static method: get comment count for paths ============
@@ -843,21 +844,17 @@
   }
 
   // ============ Static method: get recent comments ============
-  MianaoComment.getRecent = async function (apiUrl, limit) {
+  Qingniao.getRecent = async function (apiUrl, limit) {
     try {
       const res = await fetch(`${apiUrl}/api/recent?limit=${limit || 6}`)
       const data = await res.json()
       return data.comments || []
     } catch (err) {
-      console.error('MianaoComment.getRecent error:', err)
+      console.error('Qingniao.getRecent error:', err)
       return []
     }
   }
 
   // Export
-  window.MianaoComment = MianaoComment
+  window.Qingniao = Qingniao
 })()
-
-// Backward compatibility aliases
-window.ButuBuk = window.Qingniao;
-window.MianaoComment = window.Qingniao;
