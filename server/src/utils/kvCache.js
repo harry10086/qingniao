@@ -37,7 +37,10 @@ export async function purgeKvCache(env, pagePath = null) {
     const promises = [
       env.mianaoinfoKV.delete('kv_recent:5'),
       env.mianaoinfoKV.delete('kv_recent:6'),
+      env.mianaoinfoKV.delete('kv_recent:7'),
       env.mianaoinfoKV.delete('kv_recent:8'),
+      env.mianaoinfoKV.delete('kv_recent:10'),
+      env.mianaoinfoKV.delete('kv_recent:12'),
       env.mianaoinfoKV.delete('kv_recent:20'),
     ];
 

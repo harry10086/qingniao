@@ -4,40 +4,66 @@
 != partial("includes/third-party/newest-comments/common.pug", {}, { cache: true })
 
 script.
-  window.addEventListener('load', () => {
-    const keyName = 'qingniao-newest-comments-v3'
-    const { changeContent, generateHtml, run } = window.newestComments
+  (() => {
+    const initNewestComments = () => {
+      const ele = document.querySelector('#card-newest-comments .aside-list')
+      if (!ele) return
 
-    const getComment = ele => {
-      const loadAndFetch = () => {
-        const apiUrl = '!{qnApiUrl}'
-        if (!apiUrl) return
-        fetch(apiUrl + '/api/recent?limit=!{newestCommentsLimit}')
-          .then(res => res.json())
-          .then(data => {
-            const comments = (data.comments || []).map(e => {
-              const hash = e.email_hash || ''
-              const avatarUrl = hash ? `https://weavatar.com/avatar/${hash}?d=identicon` : 'https://weavatar.com/avatar/00000000000000000000000000000000?d=identicon'
-              return {
-                'content': changeContent(e.content || ''),
-                'avatar': avatarUrl,
-                'nick': e.username || '匿名',
-                'url': e.page_path + '#qn-comment-' + e.id,
-                'date': (e.created_at ? new Date(e.created_at.includes('T') ? e.created_at : e.created_at + 'Z').toISOString() : new Date().toISOString())
-              }
-            })
+      const keyName = 'qingniao-newest-comments-v3'
+      const { changeContent, generateHtml } = window.newestComments || {}
+      if (!changeContent || !generateHtml) return
 
-            btf.saveToLocal.set(keyName, JSON.stringify(comments), !{theme.aside.card_newest_comments.storage}/(60*24))
-            generateHtml(comments, ele)
-          })
-          .catch(err => {
-            console.error(err)
-            ele.textContent = "!{_p('aside.card_newest_comments.error')}"
-          })
+      // 1. 本地缓存秒开（0ms 立即渲染，避免等待网络）
+      const cachedData = (window.btf && window.btf.saveToLocal) ? btf.saveToLocal.get(keyName) : null
+      if (cachedData) {
+        try {
+          generateHtml(JSON.parse(cachedData), ele)
+        } catch (e) {
+          console.error(e)
+        }
       }
 
-      loadAndFetch()
+      // 2. 后台异步静默刷新（SWR 模式，数据有变动时平滑更新）
+      const apiUrl = '!{qnApiUrl}'
+      if (!apiUrl) return
+
+      fetch(apiUrl + '/api/recent?limit=!{newestCommentsLimit}')
+        .then(res => res.json())
+        .then(data => {
+          const comments = (data.comments || []).map(e => {
+            const hash = e.email_hash || ''
+            const avatarUrl = hash ? `https://weavatar.com/avatar/${hash}?d=identicon` : 'https://weavatar.com/avatar/00000000000000000000000000000000?d=identicon'
+            return {
+              'content': changeContent(e.content || ''),
+              'avatar': avatarUrl,
+              'nick': e.username || '匿名',
+              'url': e.page_path + '#qn-comment-' + e.id,
+              'date': (e.created_at ? new Date(e.created_at.includes('T') ? e.created_at : e.created_at + 'Z').toISOString() : new Date().toISOString())
+            }
+          })
+
+          const newCommentsStr = JSON.stringify(comments)
+          if (newCommentsStr !== cachedData) {
+            if (window.btf && window.btf.saveToLocal) {
+              btf.saveToLocal.set(keyName, newCommentsStr, !{theme.aside.card_newest_comments.storage}/(60*24))
+            }
+            generateHtml(comments, ele)
+          }
+        })
+        .catch(err => {
+          console.error('Qingniao newest comments fetch error:', err)
+          if (!cachedData) {
+            ele.textContent = "!{_p('aside.card_newest_comments.error')}"
+          }
+        })
     }
 
-    run(keyName, getComment)
-  })
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initNewestComments)
+    } else {
+      initNewestComments()
+    }
+
+    // 支持 Hexo Butterfly PJAX 页面切换
+    document.addEventListener('pjax:complete', initNewestComments)
+  })()

@@ -47,15 +47,17 @@ function withCors(request, response, env) {
     newHeaders.set(key, value);
   }
 
-  // Edge cache optimization for public GET read APIs
+  // Edge & browser cache optimization for public GET read APIs
   if (request.method === 'GET' && response.status === 200) {
     const url = new URL(request.url);
     const path = url.pathname;
-    if (path === '/api/comments' || path === '/api/recent' || path === '/api/comments/count') {
-      // max-age=0: Browser always validates with Cloudflare Edge
-      // s-maxage=120: Cloudflare Edge caches for 2 minutes (serves in 10-30ms)
-      // stale-while-revalidate=300: Revalidate asynchronously in background
-      newHeaders.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=300');
+    if (path === '/api/recent') {
+      // Sidebar recent comments: Browser caches 60s for instant navigation, Edge caches 5 mins
+      newHeaders.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+      newHeaders.set('X-Cache-Status', 'Edge-Optimized');
+    } else if (path === '/api/comments' || path === '/api/count') {
+      // Comments & count: short browser cache, Edge caches 2 mins
+      newHeaders.set('Cache-Control', 'public, max-age=10, s-maxage=120, stale-while-revalidate=300');
       newHeaders.set('X-Cache-Status', 'Edge-Optimized');
     }
   }

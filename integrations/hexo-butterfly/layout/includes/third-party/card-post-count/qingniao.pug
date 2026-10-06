@@ -33,5 +33,10 @@ script.
         })
     }
 
-    window.pjax ? getCount() : window.addEventListener('load', getCount)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', getCount)
+    } else {
+      getCount()
+    }
+    document.addEventListener('pjax:complete', getCount)
   })()
