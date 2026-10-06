@@ -598,10 +598,10 @@ title: 评论管理
     <!-- Toolbar -->
     <div class="admin-toolbar">
       <select id="filter-status" onchange="currentPage=1;loadComments()">
+        <option value="all" selected>全部评论</option>
         <option value="pending">待审核</option>
         <option value="approved">已通过</option>
         <option value="rejected">已拒绝</option>
-        <option value="all">全部</option>
       </select>
 
       <span style="font-size:13px;color:var(--text-secondary);margin-left:4px">每页:</span>
@@ -1086,7 +1086,7 @@ title: 评论管理
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ parentId, content, username, email })
+        body: JSON.stringify({ parent_id: parentId, parentId, content, username, email })
       })
 
       const data = await res.json()

@@ -117,7 +117,7 @@ export async function getAdminComments(request, env) {
   if (authError) return authError;
 
   const url = new URL(request.url);
-  const status = url.searchParams.get('status') || 'pending';
+  const status = url.searchParams.get('status') || 'all';
   const pagePath = url.searchParams.get('path');
   const search = url.searchParams.get('search') || url.searchParams.get('keyword');
   const page = parseInt(url.searchParams.get('page') || '1');
@@ -329,7 +329,8 @@ export async function adminReplyComment(request, env) {
     return Response.json({ error: '请求格式错误' }, { status: 400 });
   }
 
-  const { parent_id, content } = body;
+  const parent_id = body.parent_id || body.parentId;
+  const content = body.content;
   if (!parent_id || !content || !content.trim()) {
     return Response.json({ error: '评论 ID 与回复内容不能为空' }, { status: 400 });
   }
@@ -343,8 +344,8 @@ export async function adminReplyComment(request, env) {
   }
 
   const adminUser = request.adminUser || {};
-  const adminUsername = adminUser.username || '博主';
-  const adminEmail = (env.ADMIN_EMAIL || 'admin@example.com').trim();
+  const adminUsername = (body.username && body.username.trim()) || adminUser.username || '博主';
+  const adminEmail = ((body.email && body.email.trim()) || env.ADMIN_EMAIL || 'admin@example.com').trim();
   const adminWebsite = (env.SITE_URL || '').trim();
 
   const ipHash = await hashIP('127.0.0.1');
